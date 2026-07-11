@@ -240,6 +240,11 @@ check_model_apps() {
 }
 
 check_runtime() {
+    if ! python -c "import materialyoucolor, PIL" &>/dev/null 2>&1; then
+        report FAIL "python: materialyoucolor/pillow ausentes (rode install/30-caelestia-build.sh)"
+        return 1
+    fi
+    report OK "python: materialyoucolor + pillow"
     if command -v hyprctl &>/dev/null && hyprctl monitors &>/dev/null 2>&1; then
         report OK "runtime: sessão Hyprland ativa"
         if hyprctl clients -j 2>/dev/null | jq -e '.[] | select(.class | startswith("pandora-"))' &>/dev/null; then

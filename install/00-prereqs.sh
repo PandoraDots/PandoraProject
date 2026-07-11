@@ -25,7 +25,7 @@ prereqs_install_packages() {
         frameworkintegration libpipewire \
         quickshell-git ddcutil brightnessctl lm_sensors aubio \
         ttf-material-symbols-variable ttf-cascadia-code-nerd \
-        libqalculate bash \
+        libqalculate bash python-pillow \
         cava cmatrix tty-clock \
         power-profiles-daemon
 

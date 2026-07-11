@@ -47,7 +47,17 @@ skip_if_ready() {
 }
 
 pandora_cli_ready() {
-    command -v caelestia &>/dev/null
+    command -v caelestia &>/dev/null \
+        && python -c "import materialyoucolor, PIL" &>/dev/null 2>&1
+}
+
+ensure_caelestia_cli_deps() {
+    pacman_install python-pillow
+    if python -c "import materialyoucolor" &>/dev/null 2>&1; then
+        return 0
+    fi
+    log "Instalando materialyoucolor (dependência do caelestia CLI)..."
+    sudo python -m pip install --break-system-packages materialyoucolor
 }
 
 pandora_shell_ready() {
@@ -399,6 +409,7 @@ pandora_export_helpers() {
         pandora_pkg_alias pkg_in_repos pkg_in_aur pkg_available
         skip_if_ready pandora_cli_ready pandora_shell_ready caelestia_dots_ready
         pandora_overlays_ready scheme_inferno_ready waywallen_ready user_unit_enabled
+        ensure_caelestia_cli_deps
         is_cachyos ensure_cachyos_repos cachyos_pkg_available cachyos_preferred_pkg
         cachyos_should_skip_pkg cachyos_list_kernel_packages
         cachyos_nvidia_module_packages cachyos_kernel_header_packages

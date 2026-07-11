@@ -24,8 +24,17 @@ CLI_DIR="$(resolve_local_repo cli "$PANDORA_CLI_URL" 1)"
 SHELL_DIR="$(resolve_local_repo shell "$PANDORA_SHELL_URL" 1)"
 
 build_cli() {
+    ensure_caelestia_cli_deps
+
     if pandora_cli_ready; then
-        log "caelestia CLI já instalado: $(command -v caelestia)"
+        log "caelestia CLI já funcional: $(command -v caelestia)"
+        return 0
+    fi
+
+    if command -v caelestia &>/dev/null; then
+        log "caelestia instalado — corrigindo dependências Python"
+        ensure_caelestia_cli_deps
+        pandora_cli_ready || die "caelestia CLI não funcional (materialyoucolor/pillow)"
         return 0
     fi
 
@@ -33,6 +42,8 @@ build_cli() {
     python -m build --wheel
     sudo python -m installer --overwrite-existing dist/*.whl
     sudo install -Dm644 completions/caelestia.fish /usr/share/fish/vendor_completions.d/caelestia.fish
+    ensure_caelestia_cli_deps
+    pandora_cli_ready || die "caelestia CLI não funcional após instalação"
 }
 
 build_shell() {
