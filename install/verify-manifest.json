@@ -1,0 +1,149 @@
+{
+    "packages": {
+        "required": [
+            "base-devel",
+            "git",
+            "cmake",
+            "ninja",
+            "python",
+            "python-hatchling",
+            "python-hatch-vcs",
+            "hyprland",
+            "foot",
+            "fastfetch",
+            "btop",
+            "fish",
+            "paru",
+            "pipewire",
+            "pipewire-pulse",
+            "wireplumber",
+            "sddm",
+            "uwsm",
+            "quickshell-git",
+            "qt6-shadertools",
+            "libpipewire",
+            "libqalculate",
+            "aubio",
+            "cava",
+            "cmatrix",
+            "tty-clock",
+            "ttf-material-symbols-variable",
+            "ttf-cascadia-code-nerd",
+            "nvidia-utils",
+            "mesa",
+            "intel-media-driver",
+            "power-profiles-daemon"
+        ],
+        "optional": [
+            "pipewire-jack",
+            "qtengine",
+            "libcava",
+            "darkly-bin",
+            "caelestia-sddm-locklike-git",
+            "spotify",
+            "spicetify-cli",
+            "cursor-bin",
+            "equibop-bin",
+            "zapzap",
+            "planify",
+            "freedownloadmanager",
+            "vlc"
+        ],
+        "cachyos_drivers": true
+    },
+    "commands": {
+        "required": [
+            "caelestia",
+            "qs",
+            "paru",
+            "hyprctl",
+            "foot",
+            "fastfetch",
+            "btop",
+            "fish",
+            "uwsm"
+        ],
+        "optional": [
+            "cava",
+            "cmatrix",
+            "tty-clock",
+            "cursor",
+            "spotify"
+        ]
+    },
+    "files": {
+        "required": [
+            "~/.config/caelestia/cli.json",
+            "~/.config/caelestia/shell.json",
+            "~/.config/caelestia/hypr-user.lua",
+            "~/.config/caelestia/hypr-vars.lua",
+            "~/.config/fastfetch/config.jsonc",
+            "~/.config/cava/config",
+            "~/.config/fish/functions/fish_greeting.fish",
+            "~/.config/caelestia/gpu-profile.env",
+            "~/.local/bin/waywallen"
+        ],
+        "optional": [
+            "~/.face",
+            "~/Pictures/Wallpapers",
+            "$PANDORA_ROOT/Wallpapers/glassesredjapan.jpg"
+        ]
+    },
+    "file_contains": [
+        {
+            "path": "~/.config/caelestia/hypr-user.lua",
+            "pattern": "kb_layout",
+            "label": "teclado br-abnt2 no Hyprland"
+        },
+        {
+            "path": "~/.config/caelestia/hypr-user.lua",
+            "pattern": "pandora-info",
+            "label": "dashboard workspace 1"
+        },
+        {
+            "path": "~/.config/fastfetch/config.jsonc",
+            "pattern": "berserk-logo",
+            "label": "logo Berserk no fastfetch"
+        },
+        {
+            "path": "~/.config/fastfetch/config.jsonc",
+            "pattern": "______",
+            "label": "banner ASCII Caelestia no fastfetch"
+        },
+        {
+            "path": "~/.config/fish/functions/fish_greeting.fish",
+            "pattern": "PANDORA_DASHBOARD",
+            "label": "fish_greeting sem banner duplicado"
+        }
+    ],
+    "systemd_system": {
+        "required": [
+            "sddm.service",
+            "power-profiles-daemon.service"
+        ],
+        "optional": [
+            "nvidia-powerd.service",
+            "nekro_sense.service"
+        ]
+    },
+    "systemd_user": {
+        "required": [
+            "waywallen.service",
+            "pandora-gpu-profile.path"
+        ],
+        "optional": [
+            "pandora-gpu-profile.timer"
+        ]
+    },
+    "sddm": {
+        "theme": "caelestia",
+        "keyboard": "br-abnt2"
+    },
+    "scheme": {
+        "name": "inferno"
+    },
+    "runtime_info": [
+        "Sessão Hyprland ativa (hyprctl monitors)",
+        "Janelas pandora-* na workspace 1 (pós-login)"
+    ]
+}

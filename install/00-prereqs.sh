@@ -21,8 +21,8 @@ prereqs_install_packages() {
         hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk \
         ttf-jetbrains-mono-nerd foot fastfetch btop micro thunar \
         adw-gtk-theme papirus-icon-theme papirus-folders \
-        qt6-base qt6-declarative qt6-wayland \
-        frameworkintegration \
+        qt6-base qt6-declarative qt6-wayland qt6-shadertools \
+        frameworkintegration libpipewire \
         quickshell-git ddcutil brightnessctl lm_sensors aubio \
         ttf-material-symbols-variable ttf-cascadia-code-nerd \
         libqalculate bash \

@@ -63,17 +63,23 @@ cachyos_should_skip_pkg() {
 
 cachyos_list_kernel_packages() {
     local model_file="${1:-}"
+    local -a installed=() model_kernels=()
     local kernel
 
-    if [[ -n "$model_file" && -f "$model_file" ]]; then
-        jq -r '.cachyos.kernels[]?' "$model_file" 2>/dev/null | while read -r kernel; do
-            [[ -n "$kernel" ]] && printf '%s\n' "$kernel"
-        done
+    mapfile -t installed < <(pacman -Qqe 2>/dev/null | grep -E '^linux-cachyos' \
+        | grep -Ev '(nvidia|headers|meta|settings|dbgsym|docs)' || true)
+
+    if [[ ${#installed[@]} -gt 0 ]]; then
+        printf '%s\n' "${installed[@]}"
         return 0
     fi
 
-    pacman -Qqe 2>/dev/null | grep -E '^linux-cachyos' \
-        | grep -Ev '(nvidia|headers|meta|settings|dbgsym|docs)' || true
+    if [[ -n "$model_file" && -f "$model_file" ]]; then
+        mapfile -t model_kernels < <(jq -r '.cachyos.kernels[]?' "$model_file" 2>/dev/null)
+        for kernel in "${model_kernels[@]}"; do
+            [[ -n "$kernel" ]] && printf '%s\n' "$kernel"
+        done
+    fi
 }
 
 cachyos_nvidia_module_packages() {
@@ -148,18 +154,19 @@ cachyos_resolve_packages() {
 
 install_cachyos_gpu_drivers() {
     local model_file="$1"
-    local -a pkgs=()
-    local pkg
+    local -a raw=() pkgs=()
 
     export PANDORA_MODEL_FILE="$model_file"
     ensure_cachyos_repos || true
 
-    mapfile -t pkgs < <(jq -r '
+    mapfile -t raw < <(jq -r '
         (.packages.nvidia[]?),
         (.packages.intel[]?),
         (.packages.power[]?),
         (.packages.kernel_headers? // empty)
-    ' "$model_file" | cachyos_resolve_packages)
+    ' "$model_file")
+
+    mapfile -t pkgs < <(cachyos_resolve_packages "${raw[@]}")
 
     if [[ ${#pkgs[@]} -eq 0 ]]; then
         warn "Nenhum pacote de driver resolvido para CachyOS"

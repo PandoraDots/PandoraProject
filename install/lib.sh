@@ -320,13 +320,23 @@ clone_or_pull() {
     local url="$1"
     local dest="$2"
     local branch="${3:-main}"
+    local with_tags="${4:-0}"
+
     if [[ -d "$dest/.git" ]]; then
         git -C "$dest" fetch origin "$branch"
+        if [[ "$with_tags" == "1" ]]; then
+            git -C "$dest" fetch --tags origin 2>/dev/null || true
+        fi
         git -C "$dest" checkout "$branch"
         git -C "$dest" pull --ff-only origin "$branch" || warn "Pull falhou em $dest; usando checkout local"
     else
         mkdir -p "$(dirname "$dest")"
-        git clone --depth 1 --branch "$branch" "$url" "$dest"
+        if [[ "$with_tags" == "1" ]]; then
+            git clone --branch "$branch" "$url" "$dest"
+            git -C "$dest" fetch --tags origin 2>/dev/null || true
+        else
+            git clone --depth 1 --branch "$branch" "$url" "$dest"
+        fi
     fi
 }
 

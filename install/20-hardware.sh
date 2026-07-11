@@ -10,7 +10,8 @@ NEKRO_LLVM="$(jq -r '.packages.nekro.llvm' "$MODEL_FILE")"
 NEKRO_SERVICE="$(jq -r '.packages.nekro.service' "$MODEL_FILE")"
 
 if is_cachyos; then
-    run_step "Drivers NVIDIA + Intel (CachyOS)" install_cachyos_gpu_drivers "$MODEL_FILE"
+    run_step "Drivers NVIDIA + Intel (CachyOS)" install_cachyos_gpu_drivers "$MODEL_FILE" \
+        || die "Falha ao instalar drivers GPU (CachyOS)"
 else
     mapfile -t NVIDIA_PKGS < <(jq -r '.packages.nvidia[]' "$MODEL_FILE")
     mapfile -t INTEL_PKGS < <(jq -r '.packages.intel[]' "$MODEL_FILE")
@@ -42,14 +43,26 @@ hardware_install_nekro() {
     fi
     cd "$NEKRO_DIR"
     if [[ "$NEKRO_LLVM" == "true" ]]; then
-        make LLVM=1
-        sudo make LLVM=1 install
+        if ! make LLVM=1; then
+            warn "nekro-sense: compilação falhou — pulando (hardware Predator pode ser necessário)"
+            return 0
+        fi
+        if ! sudo make LLVM=1 install; then
+            warn "nekro-sense: install falhou — pulando"
+            return 0
+        fi
     else
-        make
-        sudo make install
+        if ! make; then
+            warn "nekro-sense: compilação falhou — pulando"
+            return 0
+        fi
+        if ! sudo make install; then
+            warn "nekro-sense: install falhou — pulando"
+            return 0
+        fi
     fi
-    sudo systemctl enable "$NEKRO_SERVICE"
-    sudo systemctl start "$NEKRO_SERVICE" 2>/dev/null || true
+    sudo systemctl enable "$NEKRO_SERVICE" 2>/dev/null || warn "nekro-sense: enable do serviço falhou"
+    sudo systemctl start "$NEKRO_SERVICE" 2>/dev/null || warn "nekro-sense: start do serviço falhou"
 }
 
 run_step "nekro-sense ($NEKRO_DIR)" hardware_install_nekro

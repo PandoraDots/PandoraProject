@@ -47,6 +47,7 @@ steps=(
     "$PANDORA_ROOT/install/40-caelestia-install.sh"
     "$PANDORA_ROOT/install/50-waywallen.sh"
     "$PANDORA_ROOT/install/90-postinstall.sh"
+    "$PANDORA_ROOT/install/99-verify.sh"
 )
 
 for step in "${steps[@]}"; do
