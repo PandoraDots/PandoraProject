@@ -80,7 +80,11 @@ check_cmd() {
         return 0
     fi
     if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 && "$cmd" == "caelestia" ]]; then
-        report FAIL "comando: $cmd (bloqueia passos 40-90 — rode resume-install.sh)"
+        report FAIL "comando: $cmd (bloqueador — rode: bash $PANDORA_ROOT/scripts/resume-install.sh)"
+        return 1
+    fi
+    if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 && "$level" == "required" && "$cmd" != "caelestia" ]]; then
+        report WARN "comando (pendente pós-resume): $cmd"
         return 1
     fi
     if [[ "$level" == "optional" ]]; then
@@ -117,7 +121,11 @@ check_file_contains() {
     pattern="$2"
     label="${3:-$pattern}"
     if [[ ! -f "$path" ]]; then
-        report FAIL "conteúdo ($label): $path ausente"
+        if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 ]]; then
+            report WARN "conteúdo (pendente pós-resume, $label): $path ausente"
+        else
+            report FAIL "conteúdo ($label): $path ausente"
+        fi
         return 1
     fi
     if grep -qF "$pattern" "$path" 2>/dev/null; then
@@ -139,6 +147,10 @@ check_systemd_unit() {
     if [[ $enabled -eq 1 ]]; then
         report OK "systemd ($scope): $unit habilitado"
         return 0
+    fi
+    if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 && "$scope" == "user" && "$level" == "required" ]]; then
+        report WARN "systemd ($scope, pendente pós-resume): $unit não habilitado"
+        return 1
     fi
     if [[ "$level" == "optional" ]]; then
         report WARN "systemd ($scope, opcional): $unit não habilitado"
@@ -202,7 +214,11 @@ check_scheme() {
     expected="$(jq -r '.scheme.name // "inferno"' "$MANIFEST")"
     scheme_file="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/scheme.json"
     if [[ ! -f "$scheme_file" ]]; then
-        report FAIL "scheme: $scheme_file ausente"
+        if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 ]]; then
+            report WARN "scheme (pendente pós-resume): $scheme_file ausente"
+        else
+            report FAIL "scheme: $scheme_file ausente"
+        fi
         return 1
     fi
     if jq -e --arg n "$expected" '.name == $n' "$scheme_file" &>/dev/null; then
@@ -254,9 +270,9 @@ check_runtime() {
 } >"$LOG_FILE"
 
 INSTALL_INCOMPLETE=0
-if ! command -v caelestia &>/dev/null; then
+if ! command -v caelestia &>/dev/null || ! command -v qs &>/dev/null; then
     INSTALL_INCOMPLETE=1
-    report INFO "instalação incompleta: comando caelestia ausente — configs/serviços user provavelmente pendentes"
+    report INFO "instalação incompleta: caelestia/qs ausente — passos 40-90 não rodaram"
     report INFO "ação sugerida: bash $PANDORA_ROOT/scripts/resume-install.sh"
 fi
 
