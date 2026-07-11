@@ -20,21 +20,48 @@
         "scale": 1.25,
         "panel": "IPS WQXGA 16:10 DCI-P3"
     },
+    "cachyos": {
+        "kernels": [
+            "linux-cachyos",
+            "linux-cachyos-lts"
+        ],
+        "nvidia_open": true
+    },
     "packages": {
         "nvidia": [
             "nvidia-open-dkms",
             "nvidia-utils",
             "lib32-nvidia-utils",
-            "nvidia-powerd"
+            "nvidia-powerd",
+            "nvidia-prime",
+            "opencl-nvidia",
+            "lib32-opencl-nvidia"
         ],
         "intel": [
             "intel-media-driver",
             "vulkan-intel",
-            "mesa"
+            "mesa",
+            "libva-intel-driver"
         ],
         "kernel_headers": "linux-cachyos-lts-headers",
         "power": [
             "power-profiles-daemon"
+        ],
+        "apps": [
+            "freedownloadmanager",
+            "zapzap",
+            "planify",
+            "vlc",
+            "thunar-archive-plugin",
+            "file-roller",
+            "p7zip",
+            "unzip",
+            "unrar",
+            "lrzip",
+            "tar",
+            "gzip",
+            "bzip2",
+            "xz"
         ],
         "nekro": {
             "repo": "https://github.com/PandoraDots/nekro-sense.git",

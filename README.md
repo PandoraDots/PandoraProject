@@ -11,19 +11,29 @@ chmod +x install.sh install/*.sh scripts/*.sh
 ./install.sh
 ```
 
-Reinicie a sessão após a instalação.
+Reinicie o sistema após a instalação (SDDM substitui greetd). Na primeira tela de login, escolha a sessão **Hyprland (uwsm-managed)**.
 
 Se os forks `cli`, `caelestia` e `shell` existirem como pastas irmãs do PandoraProject (ex.: `~/dotfile/cli`), o instalador usa essas cópias locais automaticamente em vez de clonar do GitHub.
 
 ## O que o script faz
 
-1. Instala pré-requisitos (Hyprland, paru, dependências Caelestia)
-2. Configura sessão greetd + uwsm + Hyprland
-3. Instala drivers NVIDIA/Intel e [nekro-sense](https://github.com/PandoraDots/nekro-sense) para PHN16-72
+1. Instala pré-requisitos (Hyprland, paru, dependências Caelestia) — em **CachyOS**, prioriza pacotes dos repos otimizados (`cachyos-v3`, `cachyos-extra-v3`, etc.)
+2. Configura SDDM com tema [Caelestia locklike](https://github.com/ItsABigIgloo/caelestia-sddm), teclado **br-abnt2** e sessão uwsm + Hyprland
+3. Instala drivers NVIDIA/Intel e [nekro-sense](https://github.com/PandoraDots/nekro-sense) para PHN16-72 — no CachyOS usa `linux-cachyos*-nvidia-open` (pré-compilado) em vez de `nvidia-open-dkms`
 4. Compila e instala `caelestia` CLI + shell dos forks PandoraDots (sem AUR)
 5. Executa `caelestia install` com Spotify/Spicetify, Cursor e Equicord (equibop-bin)
-6. Instala Waywallen (AppImage) com bridge para o seletor de wallpaper do Caelestia
-7. Aplica schema **inferno** (vermelho escuro), wallpaper `glassesredjapan.jpg`, RGB vermelho e perfil performance
+6. Instala apps extras: FDM, ZapZap, Planify, VLC e suporte a compactação no Thunar
+7. Instala Waywallen (AppImage) com bridge para o seletor de wallpaper do Caelestia
+8. Aplica schema **inferno** (vermelho escuro), wallpaper `glassesredjapan.jpg`, ícone de usuário (`assets/icon.png` → `~/.face`), dashboard na **workspace 1** (fastfetch+Berserk, btop, cava, cmatrix, tty-clock), RGB vermelho e perfil performance
+
+## Atalhos extras
+
+| Atalho | App |
+|--------|-----|
+| `SUPER+A` | ZapZap (WhatsApp) — special workspace com ícone `chat` |
+| `SUPER+R` | Planify (TODO) — special workspace com ícone `task_alt` |
+| `SUPER+D` | Equicord (comunicação) |
+| `SUPER+C` | Cursor |
 
 ## Modelos de hardware
 
@@ -32,6 +42,18 @@ Se os forks `cli`, `caelestia` e `shell` existirem como pastas irmãs do Pandora
 ```
 
 Perfis em `models/*.json`.
+
+### CachyOS (PHN16-72)
+
+Em sistemas CachyOS, o instalador:
+
+- Sincroniza os repos `cachyos*` antes de instalar
+- Usa **paru** (do repo CachyOS) em vez de compilar do AUR quando possível
+- Substitui `nvidia-open-dkms` por módulos pré-compilados `linux-cachyos*-nvidia-open` (um por kernel instalado)
+- Resolve headers dinamicamente (`linux-cachyos-headers`, `linux-cachyos-lts-headers`, etc.)
+- Mantém nomes iguais (`mesa`, `hyprland`, `intel-media-driver`) — o pacman já pega a build otimizada pelos repos CachyOS
+
+Kernels monitorados em `models/phn16-72.json` → `cachyos.kernels`. Ajuste se usar outro flavor (ex.: `linux-cachyos-bore`).
 
 ## Atualizações
 
@@ -49,7 +71,10 @@ O script faz merge do upstream `caelestia-dots` nos forks, rebuild cli/shell, `c
 | `overlays/cli.json` | URL dos dots, theming, bridge Waywallen |
 | `overlays/shell.json` | Desabilita wallpaper interno do shell |
 | `overlays/hypr-vars.lua` | Cursor como editor (`SUPER+C`) |
-| `overlays/hypr-user.lua` | Monitor 2560×1600@240Hz scale 1.25, autostart Waywallen |
+| `overlays/hypr-user.lua` | Teclado br-abnt2, monitor 2560×1600@240Hz scale 1.25, dashboard workspace 1, autostart Waywallen |
+| `scripts/workspace-dashboard.sh` | Layout automático: fastfetch (logo Berserk), btop, cava, cmatrix, tty-clock |
+| `overlays/fastfetch/config.jsonc` | Logo Berserk vermelho + infos do sistema |
+| `overlays/cava/config` | Visualizador de áudio em tons vermelhos |
 | `scripts/gpu-profile.sh` | Intel em economia, NVIDIA nos demais perfis |
 
 ## Forks PandoraDots

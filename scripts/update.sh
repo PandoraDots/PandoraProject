@@ -48,6 +48,7 @@ bash "$PANDORA_ROOT/install/30-caelestia-build.sh"
 
 if command -v caelestia >/dev/null 2>&1; then
     deploy_overlays
+    deploy_sddm_sudoers
     caelestia update --noconfirm --aur-helper "$PANDORA_AUR_HELPER" || warn "caelestia update falhou"
 fi
 
@@ -58,7 +59,11 @@ bash "$PANDORA_ROOT/scripts/nekro-setup.sh" "$(model_config "${PANDORA_MODEL:-ph
 LAST_WALL="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/waywallen-last.txt"
 if [[ -f "$LAST_WALL" ]]; then
     export WALLPAPER_PATH="$(cat "$LAST_WALL")"
-    bash "$PANDORA_ROOT/scripts/waywallen-bridge.sh" || true
+    bash "$PANDORA_ROOT/scripts/wallpaper-posthook.sh" || true
 fi
+
+configure_keyboard_layout 2>/dev/null || true
+sync_sddm_theme 2>/dev/null || true
+bash "$PANDORA_ROOT/scripts/workspace-dashboard.sh" 2>/dev/null || true
 
 log "Update concluído."

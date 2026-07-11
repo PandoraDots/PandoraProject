@@ -20,6 +20,8 @@ run_step "GPU profile inicial" bash -c "
     systemctl --user start pandora-gpu-profile.path pandora-gpu-profile.timer 2>/dev/null || true
 "
 
+run_step "Ícone de usuário (~/.face)" deploy_user_icon
+
 run_step "Schema inferno" bash -c '
     caelestia scheme set -n inferno -f default -m dark
 '
@@ -27,15 +29,23 @@ run_step "Schema inferno" bash -c '
 run_step "Wallpaper padrão" bash -c "
     if [[ -f '$DEFAULT_WALL' ]]; then
         caelestia wallpaper -f '$DEFAULT_WALL' -N 2>/dev/null || \
-        bash '$PANDORA_ROOT/scripts/waywallen-bridge.sh'
+        bash '$PANDORA_ROOT/scripts/wallpaper-posthook.sh' '$DEFAULT_WALL'
     else
         warn 'Wallpaper padrão não encontrado: $DEFAULT_WALL'
     fi
 "
 
+run_step "Tema SDDM Caelestia" sync_sddm_theme
+
 run_step "nekro-sense defaults" bash -c "
     chmod +x '$PANDORA_ROOT/scripts/nekro-setup.sh'
     '$PANDORA_ROOT/scripts/nekro-setup.sh' '$MODEL_FILE'
+"
+
+run_step "Dashboard workspace 1" bash -c "
+    chmod +x '$PANDORA_ROOT/scripts/workspace-dashboard.sh'
+    deploy_overlays
+    bash '$PANDORA_ROOT/scripts/workspace-dashboard.sh' || true
 "
 
 run_step "Iniciar serviços user" bash -c '

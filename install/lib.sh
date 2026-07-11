@@ -15,6 +15,9 @@ PANDORA_SHELL_URL="${PANDORA_SHELL_URL:-https://github.com/PandoraDots/shell.git
 PANDORA_NEKRO_URL="${PANDORA_NEKRO_URL:-https://github.com/PandoraDots/nekro-sense.git}"
 PANDORA_AUR_HELPER="${PANDORA_AUR_HELPER:-paru}"
 
+# shellcheck source=install/cachyos.sh
+source "$PANDORA_ROOT/install/cachyos.sh"
+
 log()  { printf '\033[1;34m[Pandora]\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[Pandora]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[Pandora]\033[0m %s\n' "$*" >&2; exit 1; }
@@ -50,16 +53,51 @@ deploy_overlays() {
             if [[ "$f" == "hypr-user.lua" ]]; then
                 sed -i "s|__PANDORA_ROOT__|$PANDORA_ROOT|g" "$dest/$f"
             fi
+            if [[ "$f" == "cli.json" ]]; then
+                patch_cli_json
+                log "Overlay: $f -> $dest/$f"
+                continue
+            fi
             log "Overlay: $f -> $dest/$f"
         fi
     done
     if [[ -f "$src/fastfetch/config.jsonc" ]]; then
         mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch"
-        cp "$src/fastfetch/config.jsonc" "${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/config.jsonc"
+        sed "s|__PANDORA_ROOT__|$PANDORA_ROOT|g" "$src/fastfetch/config.jsonc" \
+            >"${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/config.jsonc"
         log "Overlay: fastfetch/config.jsonc"
     fi
+    if [[ -f "$src/cava/config" ]]; then
+        mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/cava"
+        cp "$src/cava/config" "${XDG_CONFIG_HOME:-$HOME/.config}/cava/config"
+        log "Overlay: cava/config"
+    fi
+    if [[ -f "$src/fish/functions/fish_greeting.fish" ]]; then
+        mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions"
+        cp "$src/fish/functions/fish_greeting.fish" \
+            "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/fish_greeting.fish"
+        log "Overlay: fish/functions/fish_greeting.fish"
+    fi
     deploy_systemd_units
-    patch_cli_json
+    deploy_user_icon
+}
+
+deploy_user_icon() {
+    local src="$PANDORA_ROOT/assets/icon.png"
+    local dest="$HOME/.face"
+
+    [[ -f "$src" ]] || {
+        warn "Ícone de usuário não encontrado: $src"
+        return 0
+    }
+
+    if [[ -f "$dest" && ! -L "$dest" ]]; then
+        warn "Ícone de usuário personalizado preservado: $dest"
+        return 0
+    fi
+
+    ln -sfn "$src" "$dest"
+    log "Ícone de usuário Caelestia: $dest -> $src"
 }
 
 patch_cli_json() {
@@ -68,15 +106,46 @@ patch_cli_json() {
     python3 - <<PY
 import json, os
 path = os.path.expandvars("$cli_json")
+root = os.environ["PANDORA_ROOT"]
 with open(path) as f:
     data = json.load(f)
 data.setdefault("dots", {})["url"] = os.environ.get("PANDORA_DOTS_URL", "https://github.com/PandoraDots/caelestia.git")
 data.setdefault("dots", {})["branch"] = "main"
-data.setdefault("wallpaper", {})["postHook"] = f'bash "{os.environ["PANDORA_ROOT"]}/scripts/waywallen-bridge.sh"'
+data.setdefault("wallpaper", {})["postHook"] = f'bash "{root}/scripts/wallpaper-posthook.sh"'
+data.setdefault("theme", {})["postHook"] = "sudo /usr/share/sddm/themes/caelestia/scripts/sync.sh --posthook"
 with open(path, "w") as f:
     json.dump(data, f, indent=4)
     f.write("\n")
 PY
+}
+
+configure_keyboard_layout() {
+    sudo localectl set-keymap br-abnt2 2>/dev/null || warn "localectl set-keymap falhou"
+    sudo localectl set-x11-keymap br abnt2 2>/dev/null || warn "localectl set-x11-keymap falhou"
+    log "Teclado: br-abnt2 (sistema + Hyprland via overlay)"
+}
+
+deploy_sddm_sudoers() {
+    local sync_script="/usr/share/sddm/themes/caelestia/scripts/sync.sh"
+    [[ -x "$sync_script" ]] || return 0
+
+    local dropin="/etc/sudoers.d/caelestia-sddm-sync"
+    local line="$USER ALL=(root) NOPASSWD: $sync_script"
+    if [[ -f "$dropin" ]] && grep -qF "$sync_script" "$dropin" 2>/dev/null; then
+        return 0
+    fi
+    echo "$line" | sudo tee "$dropin" >/dev/null
+    sudo chmod 440 "$dropin"
+    log "Sudoers: sync SDDM sem senha ($sync_script)"
+}
+
+sync_sddm_theme() {
+    deploy_sddm_sudoers
+    local sync_script="/usr/share/sddm/themes/caelestia/scripts/sync.sh"
+    if [[ -x "$sync_script" ]]; then
+        sudo "$sync_script" 2>/dev/null || warn "Sync do tema SDDM falhou"
+        log "Tema SDDM sincronizado (wallpaper, avatar, cores inferno)"
+    fi
 }
 
 deploy_systemd_units() {
@@ -114,7 +183,12 @@ ensure_paru() {
     if command -v paru >/dev/null 2>&1; then
         return 0
     fi
-    log "Instalando paru..."
+    if is_cachyos; then
+        log "Instalando paru (repositório CachyOS)..."
+        sudo pacman -S --needed --noconfirm paru
+        return 0
+    fi
+    log "Instalando paru (AUR)..."
     local tmp
     tmp="$(mktemp -d)"
     git clone --depth 1 https://aur.archlinux.org/paru.git "$tmp/paru"
@@ -123,11 +197,28 @@ ensure_paru() {
 }
 
 pacman_install() {
-    sudo pacman -S --needed --noconfirm "$@"
+    [[ $# -eq 0 ]] && return 0
+
+    local -a pkgs=("$@")
+    if is_cachyos; then
+        ensure_cachyos_repos || true
+        mapfile -t pkgs < <(cachyos_resolve_packages "${pkgs[@]}")
+        [[ ${#pkgs[@]} -eq 0 ]] && return 0
+        ensure_paru
+        log "CachyOS (repos otimizados): ${pkgs[*]}"
+        paru -S --needed --noconfirm "${pkgs[@]}"
+        return 0
+    fi
+    sudo pacman -S --needed --noconfirm "${pkgs[@]}"
 }
 
 aur_install() {
     ensure_paru
+    if is_cachyos; then
+        ensure_cachyos_repos || true
+        paru -S --needed --noconfirm "$@"
+        return 0
+    fi
     paru -S --needed --noconfirm "$@"
 }
 
