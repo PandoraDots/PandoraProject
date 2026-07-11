@@ -2,7 +2,9 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-require_cmd caelestia
+require_cmd caelestia qs
+ensure_caelestia_cli_deps
+pandora_cli_ready || die "caelestia CLI não funcional — verifique materialyoucolor/pillow"
 
 mkdir -p "$PANDORA_CONFIG"
 deploy_overlays

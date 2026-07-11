@@ -8,6 +8,7 @@
             "python",
             "python-hatchling",
             "python-hatch-vcs",
+            "python-pillow",
             "hyprland",
             "foot",
             "fastfetch",
