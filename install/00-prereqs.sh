@@ -6,7 +6,7 @@ if is_cachyos; then
     run_step "Repositórios CachyOS" ensure_cachyos_repos
 fi
 
-run_step "Pré-requisitos do sistema" bash -c '
+prereqs_install_packages() {
     pacman_install \
         base-devel git cmake ninja python python-pip python-build python-installer \
         python-hatch python-hatch-vsc \
@@ -29,7 +29,9 @@ run_step "Pré-requisitos do sistema" bash -c '
         power-profiles-daemon
 
     ensure_paru
-'
+}
+
+run_step "Pré-requisitos do sistema" prereqs_install_packages
 
 mkdir -p "$PANDORA_STATE" "$PANDORA_BUILD"
 log "Pré-requisitos instalados."

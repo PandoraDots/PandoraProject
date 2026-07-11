@@ -235,3 +235,45 @@ clone_or_pull() {
         git clone --depth 1 --branch "$branch" "$url" "$dest"
     fi
 }
+
+# Exporta helpers para subshells (bash -c). Sem isso, pacman_install/aur_install etc.
+# falham com "comando não encontrado" em instalação limpa.
+pandora_export_helpers() {
+    export PANDORA_ROOT PANDORA_MODEL PANDORA_AUR_HELPER
+    export PANDORA_STATE PANDORA_CONFIG PANDORA_BUILD
+    export PANDORA_DOTS_URL PANDORA_CLI_URL PANDORA_SHELL_URL PANDORA_NEKRO_URL
+
+    local fn
+    local -a fns=(
+        log warn die require_cmd run_step model_config
+        deploy_overlays deploy_user_icon patch_cli_json configure_keyboard_layout
+        deploy_sddm_sudoers sync_sddm_theme deploy_systemd_units link_wallpapers
+        ensure_paru pacman_install aur_install clone_or_pull
+        is_cachyos ensure_cachyos_repos cachyos_pkg_available cachyos_preferred_pkg
+        cachyos_should_skip_pkg cachyos_list_kernel_packages
+        cachyos_nvidia_module_packages cachyos_kernel_header_packages
+        cachyos_resolve_packages install_cachyos_gpu_drivers
+    )
+    for fn in "${fns[@]}"; do
+        export -f "$fn"
+    done
+}
+
+pandora_helpers_reachable() {
+    [[ "$(bash -c 'type -t pacman_install')" == "function" ]]
+}
+
+# Alternativa explícita a bash -c quando o snippet usa helpers do lib.sh.
+pandora_bash() {
+    local script="$1"
+    # shellcheck disable=SC2090
+    bash -c "
+        set -euo pipefail
+        source \"\${PANDORA_ROOT}/install/lib.sh\"
+        $script
+    "
+}
+
+if [[ "${BASH_SOURCE[0]:-}" != "${0}" ]]; then
+    pandora_export_helpers
+fi

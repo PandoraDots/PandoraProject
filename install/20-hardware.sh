@@ -36,20 +36,22 @@ if [[ -d "$LOCAL_NEKRO/.git" ]]; then
     NEKRO_DIR="$LOCAL_NEKRO"
 fi
 
-run_step "nekro-sense ($NEKRO_DIR)" bash -c "
-    if [[ ! -d '$NEKRO_DIR/.git' ]]; then
-        clone_or_pull '$NEKRO_REPO' '$NEKRO_DIR'
+hardware_install_nekro() {
+    if [[ ! -d "$NEKRO_DIR/.git" ]]; then
+        clone_or_pull "$NEKRO_REPO" "$NEKRO_DIR"
     fi
-    cd '$NEKRO_DIR'
-    if [[ '$NEKRO_LLVM' == 'true' ]]; then
+    cd "$NEKRO_DIR"
+    if [[ "$NEKRO_LLVM" == "true" ]]; then
         make LLVM=1
         sudo make LLVM=1 install
     else
         make
         sudo make install
     fi
-    sudo systemctl enable '$NEKRO_SERVICE'
-    sudo systemctl start '$NEKRO_SERVICE' 2>/dev/null || true
-"
+    sudo systemctl enable "$NEKRO_SERVICE"
+    sudo systemctl start "$NEKRO_SERVICE" 2>/dev/null || true
+}
+
+run_step "nekro-sense ($NEKRO_DIR)" hardware_install_nekro
 
 log "Hardware $PANDORA_MODEL configurado."
