@@ -12,7 +12,6 @@ prereqs_install_packages() {
         python-hatch python-hatch-vsc \
         libnotify swappy grim dart-sass wl-clipboard slurp gpu-screen-recorder \
         glib2 cliphist fuzzel jq \
-        pipewire pipewire-pulse pipewire-alsa pipewire-jack wireplumber pavucontrol \
         networkmanager bluez bluez-utils gnome-keyring polkit-gnome \
         fish eza zoxide direnv starship \
         noto-fonts noto-fonts-cjk noto-fonts-emoji \
@@ -28,6 +27,7 @@ prereqs_install_packages() {
         cava cmatrix tty-clock \
         power-profiles-daemon
 
+    install_audio_stack
     ensure_paru
 }
 

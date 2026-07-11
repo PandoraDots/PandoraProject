@@ -212,6 +212,34 @@ pacman_install() {
     sudo pacman -S --needed --noconfirm "${pkgs[@]}"
 }
 
+# pipewire-jack conflita com jack2 (comum em ISOs CachyOS/Arch).
+install_audio_stack() {
+    local -a pkgs=(
+        pipewire pipewire-pulse pipewire-audio pipewire-alsa
+        wireplumber pavucontrol
+    )
+
+    pacman_install "${pkgs[@]}"
+
+    if pacman -Qi pipewire-jack &>/dev/null; then
+        log "pipewire-jack já instalado"
+        return 0
+    fi
+
+    if pacman -Q jack2 &>/dev/null; then
+        log "jack2 detectado — removendo para instalar pipewire-jack (PipeWire)"
+        if sudo pacman -R --noconfirm jack2 2>/dev/null; then
+            pacman_install pipewire-jack
+        else
+            warn "jack2 não removível (dependências) — pulando pipewire-jack"
+            warn "Áudio Pulse/PipeWire segue funcional; apps JACK usam jack2"
+        fi
+        return 0
+    fi
+
+    pacman_install pipewire-jack
+}
+
 aur_install() {
     ensure_paru
     if is_cachyos; then
@@ -248,7 +276,7 @@ pandora_export_helpers() {
         log warn die require_cmd run_step model_config
         deploy_overlays deploy_user_icon patch_cli_json configure_keyboard_layout
         deploy_sddm_sudoers sync_sddm_theme deploy_systemd_units link_wallpapers
-        ensure_paru pacman_install aur_install clone_or_pull
+        ensure_paru pacman_install aur_install clone_or_pull install_audio_stack
         is_cachyos ensure_cachyos_repos cachyos_pkg_available cachyos_preferred_pkg
         cachyos_should_skip_pkg cachyos_list_kernel_packages
         cachyos_nvidia_module_packages cachyos_kernel_header_packages
