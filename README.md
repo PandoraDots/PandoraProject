@@ -44,6 +44,12 @@ Rodar manualmente:
 ~/PandoraProject/scripts/verify-install.sh --model phn16-72
 ```
 
+Se a instalação parou no passo 30 (build do CLI), retome com:
+
+```bash
+~/PandoraProject/scripts/resume-install.sh
+```
+
 Manifesto de checks: [`install/verify-manifest.json`](install/verify-manifest.json).
 
 ## Atalhos extras

@@ -79,6 +79,10 @@ check_cmd() {
         report OK "comando: $cmd"
         return 0
     fi
+    if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 && "$cmd" == "caelestia" ]]; then
+        report FAIL "comando: $cmd (bloqueia passos 40-90 — rode resume-install.sh)"
+        return 1
+    fi
     if [[ "$level" == "optional" ]]; then
         report WARN "comando (opcional): $cmd"
     else
@@ -94,6 +98,10 @@ check_file() {
     if [[ -e "$path" || -L "$path" ]]; then
         report OK "arquivo: $path"
         return 0
+    fi
+    if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 && "$level" == "required" ]]; then
+        report WARN "arquivo (pendente pós-resume): $path"
+        return 1
     fi
     if [[ "$level" == "optional" ]]; then
         report WARN "arquivo (opcional): $path"
@@ -244,6 +252,13 @@ check_runtime() {
     printf 'CachyOS: %s\n' "$(is_cachyos && echo sim || echo não)"
     printf '%s\n' '---'
 } >"$LOG_FILE"
+
+INSTALL_INCOMPLETE=0
+if ! command -v caelestia &>/dev/null; then
+    INSTALL_INCOMPLETE=1
+    report INFO "instalação incompleta: comando caelestia ausente — configs/serviços user provavelmente pendentes"
+    report INFO "ação sugerida: bash $PANDORA_ROOT/scripts/resume-install.sh"
+fi
 
 # --- Pacotes do manifest ---
 while IFS= read -r pkg; do

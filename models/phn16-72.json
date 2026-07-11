@@ -32,7 +32,6 @@
             "nvidia-open-dkms",
             "nvidia-utils",
             "lib32-nvidia-utils",
-            "nvidia-powerd",
             "nvidia-prime",
             "opencl-nvidia",
             "lib32-opencl-nvidia"

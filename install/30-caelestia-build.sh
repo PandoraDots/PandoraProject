@@ -22,7 +22,7 @@ SHELL_DIR="$(resolve_local_repo shell "$PANDORA_SHELL_URL" 1)"
 build_cli() {
     cd "$CLI_DIR"
     python -m build --wheel
-    sudo python -m installer dist/*.whl --force
+    sudo python -m installer --overwrite-existing dist/*.whl
     sudo install -Dm644 completions/caelestia.fish /usr/share/fish/vendor_completions.d/caelestia.fish
 }
 

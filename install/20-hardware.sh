@@ -22,8 +22,12 @@ else
 fi
 
 run_step "nvidia-powerd" bash -c '
-    sudo systemctl enable nvidia-powerd.service
-    sudo systemctl start nvidia-powerd.service 2>/dev/null || true
+    if systemctl list-unit-files nvidia-powerd.service &>/dev/null; then
+        sudo systemctl enable nvidia-powerd.service 2>/dev/null || true
+        sudo systemctl start nvidia-powerd.service 2>/dev/null || true
+    else
+        echo "nvidia-powerd.service não disponível (normal em VM ou sem NVIDIA)"
+    fi
 '
 
 run_step "power-profiles-daemon" bash -c '

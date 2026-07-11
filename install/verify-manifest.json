@@ -32,13 +32,13 @@
             "nvidia-utils",
             "mesa",
             "intel-media-driver",
-            "power-profiles-daemon"
+            "power-profiles-daemon",
+            "qtengine",
+            "libcava",
+            "darkly-bin"
         ],
         "optional": [
             "pipewire-jack",
-            "qtengine",
-            "libcava",
-            "darkly-bin",
             "caelestia-sddm-locklike-git",
             "spotify",
             "spicetify-cli",
