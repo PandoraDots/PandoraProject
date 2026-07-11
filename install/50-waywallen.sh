@@ -6,11 +6,18 @@ WAYWALLEN_VERSION="${WAYWALLEN_VERSION:-0.2.4}"
 WAYWALLEN_BIN="$HOME/.local/bin/waywallen"
 WAYWALLEN_URL="https://github.com/waywallen/waywallen/releases/download/v${WAYWALLEN_VERSION}/waywallen-${WAYWALLEN_VERSION}-x86_64.AppImage"
 
-run_step "Baixar Waywallen AppImage" bash -c "
-    mkdir -p \"\$(dirname '$WAYWALLEN_BIN')\"
-    curl -fsSL '$WAYWALLEN_URL' -o '$WAYWALLEN_BIN'
-    chmod +x '$WAYWALLEN_BIN'
-"
+install_waywallen_binary() {
+    if waywallen_ready; then
+        log "Waywallen já existe: $WAYWALLEN_BIN"
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$WAYWALLEN_BIN")"
+    curl -fsSL "$WAYWALLEN_URL" -o "$WAYWALLEN_BIN"
+    chmod +x "$WAYWALLEN_BIN"
+}
+
+run_step "Waywallen AppImage" install_waywallen_binary
 
 mkdir -p "$HOME/.config/systemd/user"
 cat >"$HOME/.config/systemd/user/waywallen.service" <<EOF
@@ -30,6 +37,10 @@ WantedBy=graphical-session.target
 EOF
 
 systemctl --user daemon-reload
-systemctl --user enable waywallen.service
+if user_unit_enabled waywallen.service; then
+    log "waywallen.service já habilitado"
+else
+    systemctl --user enable waywallen.service
+fi
 
 log "Waywallen instalado em $WAYWALLEN_BIN"
