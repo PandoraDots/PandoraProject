@@ -6,7 +6,7 @@ run_step "Teclado padrão (br-abnt2)" configure_keyboard_layout
 
 session_install_sddm() {
     pacman_install sddm qt6-5compat
-    aur_install caelestia-sddm-locklike-git
+    aur_install_one caelestia-sddm-locklike-git
 
     sudo mkdir -p /etc/sddm.conf.d
     sudo tee /etc/sddm.conf.d/pandora.conf >/dev/null <<'EOF'
@@ -27,7 +27,11 @@ run_step "Display manager (SDDM + tema Caelestia)" session_install_sddm
 deploy_sddm_sudoers
 
 session_install_uwsm() {
-    aur_install uwsm
+    if pkg_in_repos uwsm; then
+        pacman_install uwsm
+    else
+        aur_install_one uwsm
+    fi
 
     mkdir -p "$HOME/.config/uwsm"
     local local_uwsm="$PANDORA_ROOT/../caelestia/uwsm"

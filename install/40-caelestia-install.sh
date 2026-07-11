@@ -22,7 +22,7 @@ run_step "caelestia install" caelestia install \
     --noconfirm \
     --aur-helper "$PANDORA_AUR_HELPER" \
     --enable-components spotify,cursor,discord \
-    --disable-components vscodium,vscode,pipewire
+    --disable-components vscodium,vscode,pipewire,qt
 
 deploy_overlays
 

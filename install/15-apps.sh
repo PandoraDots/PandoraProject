@@ -16,11 +16,7 @@ install_app_packages() {
         fi
     done
 
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        if ! pacman_install "${missing[@]}" 2>/dev/null; then
-            aur_install "${missing[@]}"
-        fi
-    fi
+    [[ ${#missing[@]} -gt 0 ]] && pacman_install "${missing[@]}"
 }
 
 if [[ ${#APP_PKGS[@]} -eq 0 ]]; then
