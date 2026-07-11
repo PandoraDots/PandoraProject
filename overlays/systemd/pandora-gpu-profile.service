@@ -1,0 +1,8 @@
+[Unit]
+Description=Aplicar perfil de GPU Pandora
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/PandoraProject/scripts/gpu-profile.sh
+Environment=PANDORA_ROOT=%h/PandoraProject

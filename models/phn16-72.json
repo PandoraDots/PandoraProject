@@ -1,0 +1,57 @@
+{
+    "id": "phn16-72",
+    "name": "Acer Predator Helios Neo PHN16-72-74VX",
+    "dmi": {
+        "product_name": "Predator PHN16-72",
+        "product_version": "PHN16-72"
+    },
+    "cpu": {
+        "model": "Intel Core i7-14700HX",
+        "vendor": "intel"
+    },
+    "gpu": {
+        "discrete": "nvidia",
+        "model": "NVIDIA GeForce RTX 4070",
+        "integrated": "intel"
+    },
+    "display": {
+        "resolution": "2560x1600",
+        "refresh_hz": 240,
+        "scale": 1.25,
+        "panel": "IPS WQXGA 16:10 DCI-P3"
+    },
+    "packages": {
+        "nvidia": [
+            "nvidia-open-dkms",
+            "nvidia-utils",
+            "lib32-nvidia-utils",
+            "nvidia-powerd"
+        ],
+        "intel": [
+            "intel-media-driver",
+            "vulkan-intel",
+            "mesa"
+        ],
+        "kernel_headers": "linux-cachyos-lts-headers",
+        "power": [
+            "power-profiles-daemon"
+        ],
+        "nekro": {
+            "repo": "https://github.com/PandoraDots/nekro-sense.git",
+            "llvm": true,
+            "service": "nekro_sense.service"
+        }
+    },
+    "nekro_defaults": {
+        "rgb_zones": ["ff0000", "ff0000", "ff0000", "ff0000"],
+        "rgb_brightness": 60,
+        "logo_color": "ff0000",
+        "logo_brightness": 70,
+        "fans": "auto",
+        "platform_profile": "performance"
+    },
+    "hypr_monitor": {
+        "mode": "2560x1600@240",
+        "scale": 1.25
+    }
+}

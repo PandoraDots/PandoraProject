@@ -1,0 +1,47 @@
+{
+    "dots": {
+        "url": "https://github.com/PandoraDots/caelestia.git",
+        "branch": "main"
+    },
+    "wallpaper": {
+        "postHook": "bash \"PANDORA_ROOT_PLACEHOLDER/scripts/waywallen-bridge.sh\""
+    },
+    "theme": {
+        "enableTerm": true,
+        "enableHypr": true,
+        "enableDiscord": true,
+        "enableSpicetify": true,
+        "enableFuzzel": true,
+        "enableBtop": true,
+        "enableGtk": true,
+        "enableQt": true,
+        "enableChromium": true,
+        "enableZed": false,
+        "enableCava": true,
+        "iconTheme": "Papirus-Dark",
+        "iconThemeLight": "Papirus-Light",
+        "iconThemeDark": "Papirus-Dark"
+    },
+    "toggles": {
+        "communication": {
+            "equibop": {
+                "enable": true,
+                "match": [{ "class": "equibop" }, { "class": "equicord" }],
+                "command": ["equibop"],
+                "move": true
+            }
+        },
+        "music": {
+            "spotify": {
+                "enable": true,
+                "match": [
+                    { "class": "Spotify" },
+                    { "initialTitle": "Spotify" },
+                    { "initialTitle": "Spotify Free" }
+                ],
+                "command": ["spicetify", "watch", "-s"],
+                "move": true
+            }
+        }
+    }
+}

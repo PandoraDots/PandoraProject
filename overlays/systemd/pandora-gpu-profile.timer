@@ -1,0 +1,10 @@
+[Unit]
+Description=Timer para sincronizar perfil GPU (fallback)
+After=graphical-session.target
+
+[Timer]
+OnBootSec=15
+OnUnitActiveSec=20
+
+[Install]
+WantedBy=graphical-session.target

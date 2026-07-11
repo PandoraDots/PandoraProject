@@ -1,0 +1,11 @@
+{
+    "background": {
+        "wallpaperEnabled": false
+    },
+    "services": {
+        "smartScheme": false
+    },
+    "paths": {
+        "wallpaperDir": "~/Pictures/Wallpapers"
+    }
+}
