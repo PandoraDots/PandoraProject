@@ -16,11 +16,13 @@ if [[ -d "$LOCAL_CAE/.git" ]]; then
     git clone "$LOCAL_CAE" "$DOTS_DIR"
 fi
 
+run_step "Stack de áudio (PipeWire)" install_audio_stack
+
 run_step "caelestia install" caelestia install \
     --noconfirm \
     --aur-helper "$PANDORA_AUR_HELPER" \
     --enable-components spotify,cursor,discord \
-    --disable-components vscodium,vscode
+    --disable-components vscodium,vscode,pipewire
 
 deploy_overlays
 
