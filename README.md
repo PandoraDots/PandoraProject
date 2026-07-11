@@ -25,6 +25,26 @@ Se os forks `cli`, `caelestia` e `shell` existirem como pastas irmãs do Pandora
 6. Instala apps extras: FDM, ZapZap, Planify, VLC e suporte a compactação no Thunar
 7. Instala Waywallen (AppImage) com bridge para o seletor de wallpaper do Caelestia
 8. Aplica schema **inferno** (vermelho escuro), wallpaper `glassesredjapan.jpg`, ícone de usuário (`assets/icon.png` → `~/.face`), dashboard na **workspace 1** (fastfetch+Berserk, btop, cava, cmatrix, tty-clock), RGB vermelho e perfil performance
+9. Executa **verificação pós-instalação** e salva relatório em texto
+
+## Verificação pós-instalação
+
+Ao final de `./install.sh`, o passo `99-verify` roda [`scripts/verify-install.sh`](scripts/verify-install.sh) e gera um relatório completo:
+
+| Arquivo | Descrição |
+|---------|-----------|
+| `~/.local/state/pandora/verify-install-latest.log` | Symlink para o último relatório |
+| `~/.local/state/pandora/verify-install-YYYYMMDD-HHMMSS.log` | Relatório com timestamp |
+
+O relatório lista cada item como `[OK]`, `[WARN]`, `[FAIL]` ou `[INFO]` — pacotes, comandos, configs, systemd, SDDM, scheme inferno e checks de runtime. Ideal para colar em análise por IA.
+
+Rodar manualmente:
+
+```bash
+~/PandoraProject/scripts/verify-install.sh --model phn16-72
+```
+
+Manifesto de checks: [`install/verify-manifest.json`](install/verify-manifest.json).
 
 ## Atalhos extras
 
