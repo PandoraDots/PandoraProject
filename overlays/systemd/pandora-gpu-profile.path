@@ -1,0 +1,11 @@
+[Unit]
+Description=Reagir a mudanças de perfil de energia (GPU Intel/NVIDIA)
+After=graphical-session.target
+
+[Path]
+PathChanged=/sys/firmware/acpi/platform_profile
+PathExists=/sys/firmware/acpi/platform_profile
+Unit=pandora-gpu-profile.service
+
+[Install]
+WantedBy=graphical-session.target
