@@ -196,20 +196,89 @@ ensure_paru() {
     rm -rf "$tmp"
 }
 
+# Nomes legados / incorretos -> pacotes reais no Arch/CachyOS.
+pandora_pkg_alias() {
+    case "$1" in
+        material-symbols)              printf '%s' ttf-material-symbols-variable ;;
+        caskaydia-cove-nerd-fonts)       printf '%s' ttf-cascadia-code-nerd ;;
+        ttf-caskaydia-cove-nerd-fonts)   printf '%s' ttf-cascadia-code-nerd ;;
+        lm-sensors)                      printf '%s' lm_sensors ;;
+        python-hatch-vsc)                printf '%s' "" ;;
+        *)                               printf '%s' "$1" ;;
+    esac
+}
+
+pkg_in_repos() {
+    pacman -Si "$1" &>/dev/null
+}
+
+pkg_in_aur() {
+    ensure_paru
+    paru -Si --aur "$1" &>/dev/null
+}
+
+pkg_available() {
+    pkg_in_repos "$1" || pkg_in_aur "$1"
+}
+
+# Evita prompts de "provider" (ex.: qtengine-git, libcava-git) em instalação não interativa.
+aur_install_one() {
+    local pkg="$1"
+    ensure_paru
+    if paru -S --aur --needed --noconfirm "$pkg"; then
+        return 0
+    fi
+    warn "Falha ao instalar $pkg (AUR)"
+    return 1
+}
+
 pacman_install() {
     [[ $# -eq 0 ]] && return 0
 
-    local -a pkgs=("$@")
+    ensure_paru
     if is_cachyos; then
         ensure_cachyos_repos || true
-        mapfile -t pkgs < <(cachyos_resolve_packages "${pkgs[@]}")
-        [[ ${#pkgs[@]} -eq 0 ]] && return 0
-        ensure_paru
-        log "CachyOS (repos otimizados): ${pkgs[*]}"
-        paru -S --needed --noconfirm "${pkgs[@]}"
-        return 0
     fi
-    sudo pacman -S --needed --noconfirm "${pkgs[@]}"
+
+    local -a repo_pkgs=() aur_pkgs=()
+    local pkg alias
+
+    for pkg in "$@"; do
+        alias="$(pandora_pkg_alias "$pkg")"
+        if [[ -z "$alias" ]]; then
+            warn "Pacote ignorado (sem equivalente Arch): $pkg"
+            continue
+        fi
+        if [[ "$alias" != "$pkg" ]]; then
+            log "Alias de pacote: $pkg -> $alias"
+            pkg="$alias"
+        fi
+
+        if pkg_in_repos "$pkg"; then
+            repo_pkgs+=("$pkg")
+        elif pkg_in_aur "$pkg"; then
+            aur_pkgs+=("$pkg")
+        else
+            warn "Pacote não encontrado (repos/AUR): $pkg"
+        fi
+    done
+
+    if is_cachyos && [[ ${#repo_pkgs[@]} -gt 0 ]]; then
+        mapfile -t repo_pkgs < <(cachyos_resolve_packages "${repo_pkgs[@]}")
+    fi
+
+    if [[ ${#repo_pkgs[@]} -gt 0 ]]; then
+        log "Pacotes (repos): ${repo_pkgs[*]}"
+        sudo pacman -S --needed --noconfirm "${repo_pkgs[@]}"
+    fi
+
+    if [[ ${#aur_pkgs[@]} -gt 0 ]]; then
+        log "Pacotes (AUR): ${aur_pkgs[*]}"
+        local aur_pkg
+        for aur_pkg in "${aur_pkgs[@]}"; do
+            aur_install_one "$aur_pkg" || true
+        done
+    fi
 }
 
 # pipewire-jack conflita com jack2 (comum em ISOs CachyOS/Arch).
@@ -241,13 +310,10 @@ install_audio_stack() {
 }
 
 aur_install() {
-    ensure_paru
-    if is_cachyos; then
-        ensure_cachyos_repos || true
-        paru -S --needed --noconfirm "$@"
-        return 0
-    fi
-    paru -S --needed --noconfirm "$@"
+    local pkg
+    for pkg in "$@"; do
+        aur_install_one "$pkg" || true
+    done
 }
 
 clone_or_pull() {
@@ -276,7 +342,8 @@ pandora_export_helpers() {
         log warn die require_cmd run_step model_config
         deploy_overlays deploy_user_icon patch_cli_json configure_keyboard_layout
         deploy_sddm_sudoers sync_sddm_theme deploy_systemd_units link_wallpapers
-        ensure_paru pacman_install aur_install clone_or_pull install_audio_stack
+        ensure_paru pacman_install aur_install aur_install_one clone_or_pull install_audio_stack
+        pandora_pkg_alias pkg_in_repos pkg_in_aur pkg_available
         is_cachyos ensure_cachyos_repos cachyos_pkg_available cachyos_preferred_pkg
         cachyos_should_skip_pkg cachyos_list_kernel_packages
         cachyos_nvidia_module_packages cachyos_kernel_header_packages

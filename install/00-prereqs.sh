@@ -7,9 +7,11 @@ if is_cachyos; then
 fi
 
 prereqs_install_packages() {
+    ensure_paru
+
     pacman_install \
         base-devel git cmake ninja python python-pip python-build python-installer \
-        python-hatch python-hatch-vsc \
+        python-hatch python-hatchling python-hatch-vcs \
         libnotify swappy grim dart-sass wl-clipboard slurp gpu-screen-recorder \
         glib2 cliphist fuzzel jq \
         networkmanager bluez bluez-utils gnome-keyring polkit-gnome \
@@ -18,17 +20,21 @@ prereqs_install_packages() {
         curl trash-cli lazygit bat ripgrep ydotool hyprpicker xdg-user-dirs \
         hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk \
         ttf-jetbrains-mono-nerd foot fastfetch btop micro thunar \
-        adw-gtk-theme papirus-icon-theme \
+        adw-gtk-theme papirus-icon-theme papirus-folders \
         qt6-base qt6-declarative qt6-wayland \
-        qtengine frameworkintegration darkly-bin \
-        quickshell-git ddcutil brightnessctl libcava lm-sensors aubio \
-        material-symbols caskaydia-cove-nerd-fonts \
+        frameworkintegration \
+        quickshell-git ddcutil brightnessctl lm_sensors aubio \
+        ttf-material-symbols-variable ttf-cascadia-code-nerd \
         libqalculate bash \
         cava cmatrix tty-clock \
         power-profiles-daemon
 
+    # AUR com providers conhecidos — um por vez, ordem importa para Qt/KDE.
+    aur_install_one qtengine
+    aur_install_one libcava
+    aur_install_one darkly-bin
+
     install_audio_stack
-    ensure_paru
 }
 
 run_step "Pré-requisitos do sistema" prereqs_install_packages
