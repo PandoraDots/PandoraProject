@@ -36,6 +36,48 @@ run_step() {
     "$@"
 }
 
+skip_if_ready() {
+    local name="$1"
+    shift
+    if "$@"; then
+        log "==> $name (já pronto — pulando)"
+        return 0
+    fi
+    return 1
+}
+
+pandora_cli_ready() {
+    command -v caelestia &>/dev/null
+}
+
+pandora_shell_ready() {
+    command -v qs &>/dev/null
+}
+
+caelestia_dots_ready() {
+    [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.conf" ]]
+}
+
+pandora_overlays_ready() {
+    [[ -f "$PANDORA_CONFIG/hypr-user.lua" ]] \
+        && grep -qF "$PANDORA_ROOT" "$PANDORA_CONFIG/hypr-user.lua" 2>/dev/null \
+        && [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/config.jsonc" ]]
+}
+
+scheme_inferno_ready() {
+    local scheme_file="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/scheme.json"
+    [[ -f "$scheme_file" ]] && jq -e '.name == "inferno"' "$scheme_file" &>/dev/null
+}
+
+waywallen_ready() {
+    [[ -x "${HOME}/.local/bin/waywallen" ]]
+}
+
+user_unit_enabled() {
+    local unit="$1"
+    systemctl --user is-enabled "$unit" &>/dev/null
+}
+
 model_config() {
     local model="$1"
     local file="$PANDORA_ROOT/models/${model}.json"
@@ -323,19 +365,20 @@ clone_or_pull() {
     local with_tags="${4:-0}"
 
     if [[ -d "$dest/.git" ]]; then
-        git -C "$dest" fetch origin "$branch"
+        git -C "$dest" fetch origin "$branch" >&2
         if [[ "$with_tags" == "1" ]]; then
-            git -C "$dest" fetch --tags origin 2>/dev/null || true
+            git -C "$dest" fetch --tags origin >&2 2>/dev/null || true
         fi
-        git -C "$dest" checkout "$branch"
-        git -C "$dest" pull --ff-only origin "$branch" || warn "Pull falhou em $dest; usando checkout local"
+        git -C "$dest" checkout "$branch" >&2
+        git -C "$dest" pull --ff-only origin "$branch" >&2 \
+            || warn "Pull falhou em $dest; usando checkout local"
     else
         mkdir -p "$(dirname "$dest")"
         if [[ "$with_tags" == "1" ]]; then
-            git clone --branch "$branch" "$url" "$dest"
-            git -C "$dest" fetch --tags origin 2>/dev/null || true
+            git clone --branch "$branch" "$url" "$dest" >&2
+            git -C "$dest" fetch --tags origin >&2 2>/dev/null || true
         else
-            git clone --depth 1 --branch "$branch" "$url" "$dest"
+            git clone --depth 1 --branch "$branch" "$url" "$dest" >&2
         fi
     fi
 }
@@ -354,6 +397,8 @@ pandora_export_helpers() {
         deploy_sddm_sudoers sync_sddm_theme deploy_systemd_units link_wallpapers
         ensure_paru pacman_install aur_install aur_install_one clone_or_pull install_audio_stack
         pandora_pkg_alias pkg_in_repos pkg_in_aur pkg_available
+        skip_if_ready pandora_cli_ready pandora_shell_ready caelestia_dots_ready
+        pandora_overlays_ready scheme_inferno_ready waywallen_ready user_unit_enabled
         is_cachyos ensure_cachyos_repos cachyos_pkg_available cachyos_preferred_pkg
         cachyos_should_skip_pkg cachyos_list_kernel_packages
         cachyos_nvidia_module_packages cachyos_kernel_header_packages
