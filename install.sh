@@ -30,6 +30,8 @@ export PANDORA_MODEL
 
 source "$PANDORA_ROOT/install/lib.sh"
 
+pandora_helpers_reachable || die "Helpers do lib.sh não alcançam subshells (bash -c). Verifique install/lib.sh."
+
 log "PandoraProject install — modelo: $PANDORA_MODEL"
 log "Raiz: $PANDORA_ROOT"
 

@@ -6,13 +6,6 @@ MODEL_FILE="$(model_config "$PANDORA_MODEL")"
 
 mapfile -t APP_PKGS < <(jq -r '.packages.apps[]?' "$MODEL_FILE")
 
-if [[ ${#APP_PKGS[@]} -eq 0 ]]; then
-    log "Nenhum pacote extra em apps; pulando."
-    exit 0
-fi
-
-run_step "Apps Pandora (FDM, ZapZap, Planify, VLC, arquivos)" install_app_packages
-
 install_app_packages() {
     local pkg missing=()
     for pkg in "${APP_PKGS[@]}"; do
@@ -29,5 +22,12 @@ install_app_packages() {
         fi
     fi
 }
+
+if [[ ${#APP_PKGS[@]} -eq 0 ]]; then
+    log "Nenhum pacote extra em apps; pulando."
+    exit 0
+fi
+
+run_step "Apps Pandora (FDM, ZapZap, Planify, VLC, arquivos)" install_app_packages
 
 log "Apps instalados."
