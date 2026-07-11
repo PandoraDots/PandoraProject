@@ -7,5 +7,23 @@
     },
     "paths": {
         "wallpaperDir": "~/Pictures/Wallpapers"
+    },
+    "bar": {
+        "workspaces": {
+            "specialWorkspaceIcons": [
+                {
+                    "name": "whatsapp",
+                    "icon": "chat"
+                },
+                {
+                    "name": "todo",
+                    "icon": "task_alt"
+                },
+                {
+                    "name": "communication",
+                    "icon": "forum"
+                }
+            ]
+        }
     }
 }

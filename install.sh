@@ -39,6 +39,7 @@ chmod +x "$PANDORA_ROOT"/install/*.sh 2>/dev/null || true
 steps=(
     "$PANDORA_ROOT/install/00-prereqs.sh"
     "$PANDORA_ROOT/install/10-session.sh"
+    "$PANDORA_ROOT/install/15-apps.sh"
     "$PANDORA_ROOT/install/20-hardware.sh"
     "$PANDORA_ROOT/install/30-caelestia-build.sh"
     "$PANDORA_ROOT/install/40-caelestia-install.sh"

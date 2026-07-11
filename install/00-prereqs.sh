@@ -2,6 +2,10 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+if is_cachyos; then
+    run_step "Repositórios CachyOS" ensure_cachyos_repos
+fi
+
 run_step "Pré-requisitos do sistema" bash -c '
     pacman_install \
         base-devel git cmake ninja python python-pip python-build python-installer \
@@ -21,6 +25,7 @@ run_step "Pré-requisitos do sistema" bash -c '
         quickshell-git ddcutil brightnessctl libcava lm-sensors aubio \
         material-symbols caskaydia-cove-nerd-fonts \
         libqalculate bash \
+        cava cmatrix tty-clock \
         power-profiles-daemon
 
     ensure_paru
