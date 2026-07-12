@@ -26,13 +26,19 @@ fi
 log "Instalando launcher Waywallen (.desktop + ícone)..."
 install_waywallen_launcher || warn "launcher Waywallen falhou"
 
-# Waywallen daemon no NVIDIA fica preto — desligar
+# Waywallen daemon/layer-shell no NVIDIA fica preto — desligar
 systemctl --user unmask waywallen.service 2>/dev/null || true
 systemctl --user disable --now waywallen.service 2>/dev/null || true
+pkill -u "$USER" -f 'waywallen-layer-shell' 2>/dev/null || true
+pkill -u "$USER" -f 'waywallen-image-renderer' 2>/dev/null || true
 pkill -u "$USER" -f 'waywallen.*--no-ui' 2>/dev/null || true
 
 log "Aplicando overlay (Caelestia wallpaper habilitado)..."
 deploy_overlays
+deploy_pandora_sddm_conf 2>/dev/null || true
+install_hyprland_uwsm_session 2>/dev/null || true
+deploy_systemd_units 2>/dev/null || true
+sync_sddm_theme 2>/dev/null || true
 
 log "Aplicando wallpaper via Caelestia..."
 if [[ -f "$DEFAULT_WALL" ]]; then
@@ -50,5 +56,5 @@ if command -v caelestia &>/dev/null && pandora_shell_qsconf &>/dev/null; then
     fi
 fi
 
-log "Pronto. Wallpaper via Caelestia; Waywallen só no launcher."
+log "Pronto. Wallpaper via Caelestia; Waywallen no launcher com --no-display (waywallen-ui)."
 log "Verifique: bash $PANDORA_ROOT/scripts/verify-install.sh"

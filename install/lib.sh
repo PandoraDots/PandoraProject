@@ -126,6 +126,8 @@ wallpaper_ready() {
 
 install_waywallen_launcher() {
     local bin="${HOME}/.local/bin/waywallen"
+    local ui_wrapper="$PANDORA_ROOT/scripts/waywallen-ui.sh"
+    local ui_link="${HOME}/.local/bin/waywallen-ui"
     local desktop_src="$PANDORA_ROOT/assets/waywallen/org.waywallen.waywallen.desktop"
     local icon_src="$PANDORA_ROOT/assets/waywallen/org.waywallen.waywallen.svg"
     local desktop_dst icon_dst apps_dir icons_dir
@@ -134,6 +136,12 @@ install_waywallen_launcher() {
         warn "Waywallen binário ausente: $bin"
         return 1
     }
+    [[ -f "$ui_wrapper" ]] || {
+        warn "Wrapper Waywallen ausente: $ui_wrapper"
+        return 1
+    }
+    chmod +x "$ui_wrapper" "$PANDORA_ROOT/scripts/waywallen-bridge.sh" 2>/dev/null || true
+    ln -sfn "$ui_wrapper" "$ui_link"
 
     apps_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
     icons_dir="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
@@ -148,7 +156,8 @@ install_waywallen_launcher() {
     fi
 
     if [[ -f "$desktop_src" ]]; then
-        sed -e "s|^Exec=.*|Exec=${bin}|" \
+        # --no-display via wrapper: evita layer preto no NVIDIA
+        sed -e "s|^Exec=.*|Exec=${ui_link}|" \
             -e "s|^Icon=.*|Icon=org.waywallen.waywallen|" \
             "$desktop_src" >"$desktop_dst"
     else
@@ -157,8 +166,8 @@ install_waywallen_launcher() {
 Type=Application
 Name=Waywallen
 GenericName=Wallpaper Manager for Linux
-Comment=Wallpaper Manager for Linux
-Exec=${bin}
+Comment=Seletor de wallpaper (renderizado pelo Caelestia no Hyprland)
+Exec=${ui_link}
 Icon=org.waywallen.waywallen
 Terminal=false
 Categories=Graphics;Qt;
@@ -401,25 +410,94 @@ configure_keyboard_layout() {
 
 deploy_sddm_sudoers() {
     local sync_script="/usr/share/sddm/themes/caelestia/scripts/sync.sh"
-    [[ -x "$sync_script" ]] || return 0
-
+    local login_wall="$PANDORA_ROOT/scripts/sddm-set-login-wall.sh"
     local dropin="/etc/sudoers.d/caelestia-sddm-sync"
-    local line="$USER ALL=(root) NOPASSWD: $sync_script"
-    if [[ -f "$dropin" ]] && grep -qF "$sync_script" "$dropin" 2>/dev/null; then
-        return 0
-    fi
-    echo "$line" | sudo tee "$dropin" >/dev/null
+    local lines=()
+
+    [[ -x "$sync_script" || -f "$sync_script" ]] || return 0
+    chmod +x "$login_wall" 2>/dev/null || true
+
+    lines+=("$USER ALL=(root) NOPASSWD: $sync_script")
+    lines+=("$USER ALL=(root) NOPASSWD: $login_wall")
+    lines+=("$USER ALL=(root) NOPASSWD: /usr/bin/bash $login_wall")
+    lines+=("$USER ALL=(root) NOPASSWD: /bin/bash $login_wall")
+
+    printf '%s\n' "${lines[@]}" | sudo tee "$dropin" >/dev/null
     sudo chmod 440 "$dropin"
-    log "Sudoers: sync SDDM sem senha ($sync_script)"
+    log "Sudoers: sync SDDM + whitekat login wall sem senha"
 }
 
 sync_sddm_theme() {
     deploy_sddm_sudoers
     local sync_script="/usr/share/sddm/themes/caelestia/scripts/sync.sh"
+    local login_wall="$PANDORA_ROOT/scripts/sddm-set-login-wall.sh"
     if [[ -x "$sync_script" ]]; then
         sudo "$sync_script" 2>/dev/null || warn "Sync do tema SDDM falhou"
-        log "Tema SDDM sincronizado (wallpaper, avatar, cores inferno)"
+        sudo "$login_wall" 2>/dev/null || bash "$login_wall" 2>/dev/null \
+            || warn "Falha ao forçar whitekat no SDDM"
+        log "Tema SDDM sincronizado (avatar/cores + login whitekat)"
     fi
+}
+
+install_hyprland_uwsm_session() {
+    local src="$PANDORA_ROOT/overlays/wayland-sessions/hyprland-uwsm.desktop"
+    local wrapper_src="$PANDORA_ROOT/scripts/pandora-wayland-session.sh"
+    # SDDM greeter (user sddm) não lê ~/.local — prioridade: /usr/local/share
+    local system_dir="/usr/local/share/wayland-sessions"
+    local system_dest="$system_dir/hyprland-uwsm.desktop"
+    local user_dir="${XDG_DATA_HOME:-$HOME/.local/share}/wayland-sessions"
+    local user_dest="$user_dir/hyprland-uwsm.desktop"
+    local wrapper_dest="/usr/local/lib/pandora/wayland-session"
+    local content
+
+    if [[ -f "$src" ]]; then
+        content="$(cat "$src")"
+    else
+        content='[Desktop Entry]
+Name=Hyprland (uwsm-managed)
+Comment=An intelligent dynamic tiling Wayland compositor
+Exec=uwsm start -g -1 -e -D Hyprland hyprland.desktop
+TryExec=uwsm
+DesktopNames=Hyprland
+Type=Application'
+    fi
+
+    sudo mkdir -p "$system_dir" "$(dirname "$wrapper_dest")"
+    printf '%s\n' "$content" | sudo tee "$system_dest" >/dev/null
+    sudo chmod 644 "$system_dest"
+
+    if [[ -f "$wrapper_src" ]]; then
+        sudo cp -f "$wrapper_src" "$wrapper_dest"
+        sudo chmod 755 "$wrapper_dest"
+    else
+        warn "Wrapper wayland-session ausente: $wrapper_src"
+    fi
+
+    # Espelho opcional (não é o que o greeter usa)
+    mkdir -p "$user_dir"
+    printf '%s\n' "$content" >"$user_dest"
+    chmod 644 "$user_dest"
+
+    log "Sessão Wayland: $system_dest (uwsm -g -1) + SessionCommand=$wrapper_dest"
+}
+
+deploy_pandora_sddm_conf() {
+    local src="$PANDORA_ROOT/overlays/sddm/pandora.conf"
+    sudo mkdir -p /etc/sddm.conf.d
+    if [[ -f "$src" ]]; then
+        sudo cp -f "$src" /etc/sddm.conf.d/pandora.conf
+    else
+        sudo tee /etc/sddm.conf.d/pandora.conf >/dev/null <<'EOF'
+[Theme]
+Current=caelestia
+
+[General]
+Numlock=on
+DisplayServer=x11-user
+EOF
+    fi
+    sudo chmod 644 /etc/sddm.conf.d/pandora.conf
+    log "SDDM: DisplayServer=x11-user (greeter X11 estável)"
 }
 
 deploy_systemd_units() {
@@ -437,6 +515,9 @@ deploy_systemd_units() {
         cp "$src/pandora-gpu-profile.timer" "$unit_dir/pandora-gpu-profile.timer"
     fi
     systemctl --user daemon-reload 2>/dev/null || true
+    # Path observa o mesmo sysfs que o script escreve → loop; preferir timer
+    systemctl --user disable --now pandora-gpu-profile.path 2>/dev/null || true
+    systemctl --user enable --now pandora-gpu-profile.timer 2>/dev/null || true
 }
 
 link_wallpapers() {

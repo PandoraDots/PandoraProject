@@ -1,6 +1,8 @@
 [Unit]
-Description=Reagir a mudanças de perfil de energia (GPU Intel/NVIDIA)
+Description=Reagir a mudanças de perfil ACPI (desabilitado por padrão — causa loop)
 After=graphical-session.target
+# NÃO habilitar: PathChanged em platform_profile + escrita no mesmo arquivo
+# pelo gpu-profile.sh dispara o service em loop. Use pandora-gpu-profile.timer.
 
 [Path]
 PathChanged=/sys/firmware/acpi/platform_profile

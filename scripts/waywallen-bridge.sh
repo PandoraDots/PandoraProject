@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Bridge: aplica wallpaper no Caelestia (renderer confiável no NVIDIA).
-# NÃO inicia o daemon Waywallen — o layer-shell fica preto e cobre o fundo.
+# NÃO inicia o daemon Waywallen nem chama ApplyById — o layer-shell fica preto.
 set -euo pipefail
 
 PANDORA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,6 +22,10 @@ WALL="$(readlink -f "$WALL")"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/pandora"
 mkdir -p "$STATE_DIR"
 printf '%s\n' "$WALL" >"$STATE_DIR/waywallen-last.txt"
+
+# Segurança: se o layer preto do Waywallen estiver ativo, remove
+pkill -u "$USER" -f 'waywallen-layer-shell' 2>/dev/null || true
+pkill -u "$USER" -f 'waywallen-image-renderer' 2>/dev/null || true
 
 # Biblioteca Waywallen (app UI no launcher)
 # shellcheck disable=SC1090
@@ -45,7 +49,7 @@ if [[ -z "${SCHEME_NAME:-}" ]] && command -v caelestia &>/dev/null; then
         || true
 fi
 
-# Sync opcional se o daemon Waywallen já estiver ativo (não iniciar)
+# Sync de biblioteca se o daemon (UI) já estiver ativo — sem ApplyById
 BUS="org.waywallen.waywallen.Daemon"
 OBJ="/org/waywallen/waywallen/Daemon"
 IFACE="org.waywallen.waywallen.Daemon1"
@@ -65,15 +69,5 @@ fi
 
 gdbus call --session --dest "$BUS" --object-path "$OBJ" \
     --method "$IFACE.Rescan" &>/dev/null || true
-
-ITEM_ID=""
-if command -v sqlite3 &>/dev/null && [[ -f "$DB" ]]; then
-    ITEM_ID="$(sqlite3 "$DB" "SELECT id FROM item WHERE path = '$BASE' OR path LIKE '%/$BASE' OR path = '$WALL' LIMIT 1;" 2>/dev/null || true)"
-fi
-
-if [[ -n "$ITEM_ID" ]]; then
-    gdbus call --session --dest "$BUS" --object-path "$OBJ" \
-        --method "$IFACE.ApplyById" "$ITEM_ID" &>/dev/null || true
-fi
 
 exit 0

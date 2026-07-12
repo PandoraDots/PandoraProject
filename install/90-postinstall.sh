@@ -23,13 +23,14 @@ postinstall_gpu_profile() {
     chmod +x "$PANDORA_ROOT/scripts/gpu-profile.sh"
     deploy_systemd_units
     "$PANDORA_ROOT/scripts/gpu-profile.sh"
-    systemctl --user enable pandora-gpu-profile.path pandora-gpu-profile.timer 2>/dev/null || true
-    systemctl --user start pandora-gpu-profile.path pandora-gpu-profile.timer 2>/dev/null || true
+    # path unit causa loop com hyprctl/sysfs — só timer
+    systemctl --user disable --now pandora-gpu-profile.path 2>/dev/null || true
+    systemctl --user enable --now pandora-gpu-profile.timer 2>/dev/null || true
 }
 
 if ! skip_if_ready "GPU profile inicial" bash -c "
     [[ -f '$PANDORA_CONFIG/gpu-profile.env' ]] \
-        && systemctl --user is-enabled pandora-gpu-profile.path &>/dev/null
+        && systemctl --user is-enabled pandora-gpu-profile.timer &>/dev/null
 "; then
     run_step "GPU profile inicial" postinstall_gpu_profile
 fi

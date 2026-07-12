@@ -8,15 +8,7 @@ session_install_sddm() {
     pacman_install sddm qt6-5compat
     aur_install_one caelestia-sddm-locklike-git
 
-    sudo mkdir -p /etc/sddm.conf.d
-    sudo tee /etc/sddm.conf.d/pandora.conf >/dev/null <<'EOF'
-[Theme]
-Current=caelestia
-
-[General]
-Numlock=on
-DisplayServer=wayland
-EOF
+    deploy_pandora_sddm_conf
 
     sudo systemctl disable greetd.service 2>/dev/null || true
     sudo systemctl enable sddm.service
@@ -25,6 +17,8 @@ EOF
 run_step "Display manager (SDDM + tema Caelestia)" session_install_sddm
 
 deploy_sddm_sudoers
+
+run_step "Sessão Hyprland uwsm (-g 0)" install_hyprland_uwsm_session
 
 session_install_uwsm() {
     if pkg_in_repos uwsm; then

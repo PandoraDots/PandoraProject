@@ -159,11 +159,9 @@
     },
     "systemd_user": {
         "required": [
-            "pandora-gpu-profile.path"
-        ],
-        "optional": [
             "pandora-gpu-profile.timer"
-        ]
+        ],
+        "optional": []
     },
     "sddm": {
         "theme": "caelestia",
