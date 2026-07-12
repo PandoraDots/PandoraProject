@@ -17,7 +17,7 @@ ensure_fuse_for_appimage() {
 install_waywallen_binary() {
     ensure_fuse_for_appimage
 
-    if waywallen_ready; then
+    if [[ -x "$WAYWALLEN_BIN" ]]; then
         log "Waywallen já existe: $WAYWALLEN_BIN"
         return 0
     fi
@@ -28,11 +28,14 @@ install_waywallen_binary() {
 }
 
 run_step "Waywallen AppImage" install_waywallen_binary
+run_step "Waywallen launcher (.desktop)" install_waywallen_launcher
 
+# Unit disponível para uso manual, mas NÃO habilitada no boot:
+# no NVIDIA o layer-shell importa DMA-BUF e fica preto cobrindo o Caelestia.
 mkdir -p "$HOME/.config/systemd/user"
 cat >"$HOME/.config/systemd/user/waywallen.service" <<EOF
 [Unit]
-Description=Waywallen wallpaper daemon
+Description=Waywallen wallpaper daemon (opcional — preto no NVIDIA)
 After=graphical-session.target
 PartOf=graphical-session.target
 
@@ -46,14 +49,11 @@ RestartSec=3
 WantedBy=graphical-session.target
 EOF
 
-systemctl --user daemon-reload
-if user_unit_enabled waywallen.service; then
-    log "waywallen.service já habilitado"
-else
-    systemctl --user enable waywallen.service
-fi
+systemctl --user daemon-reload 2>/dev/null || true
+systemctl --user unmask waywallen.service 2>/dev/null || true
+systemctl --user disable --now waywallen.service 2>/dev/null || true
+log "waywallen.service instalado mas desabilitado (Caelestia renderiza o wallpaper)"
 
-# Seed library root (Pictures/Wallpapers) para Rescan/ApplyById
 seed_waywallen_library() {
     local dirs_file="${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
     # shellcheck disable=SC1090
@@ -68,6 +68,7 @@ seed_waywallen_library() {
         sqlite3 "$db" "INSERT OR IGNORE INTO library (plugin_id, path, metadata) VALUES (1, '$lib', '{}');" 2>/dev/null || true
     fi
 }
+
 seed_waywallen_library
 
-log "Waywallen instalado em $WAYWALLEN_BIN"
+log "Waywallen app em $WAYWALLEN_BIN (launcher OK; daemon off)"

@@ -92,20 +92,89 @@ scheme_inferno_ready() {
     [[ -f "$scheme_file" ]] && jq -e '.name == "inferno"' "$scheme_file" &>/dev/null
 }
 
+waywallen_desktop_path() {
+    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/applications/org.waywallen.waywallen.desktop"
+}
+
+waywallen_icon_path() {
+    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/org.waywallen.waywallen.svg"
+}
+
 waywallen_ready() {
-    [[ -x "${HOME}/.local/bin/waywallen" ]]
+    [[ -x "${HOME}/.local/bin/waywallen" ]] || return 1
+    [[ -f "$(waywallen_desktop_path)" ]] || return 1
 }
 
 wallpaper_ready() {
-    local last wall_db count
-    last="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/waywallen-last.txt"
-    wall_db="${XDG_DATA_HOME:-$HOME/.local/share}/waywallen/waywallen-v2.db"
-    [[ -f "$last" ]] || return 1
-    if [[ -f "$wall_db" ]] && command -v sqlite3 &>/dev/null; then
-        count="$(sqlite3 "$wall_db" 'SELECT COUNT(*) FROM item;' 2>/dev/null || echo 0)"
-        [[ "${count:-0}" -gt 0 ]] || return 1
+    local path_state wall shell_json
+    path_state="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/wallpaper/path.txt"
+    shell_json="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/shell.json"
+    [[ -f "$path_state" ]] || return 1
+    wall="$(cat "$path_state" 2>/dev/null || true)"
+    [[ -n "$wall" && -f "$wall" ]] || return 1
+    if [[ -f "$shell_json" ]] && command -v jq &>/dev/null; then
+        jq -e '.background.wallpaperEnabled == true' "$shell_json" &>/dev/null || return 1
+        # enabled=false ou ausente tratado: precisa estar habilitado (default true)
+        jq -e '.background.enabled != false' "$shell_json" &>/dev/null || return 1
+    fi
+    # Daemon Waywallen ativo cobre o Caelestia com layer preto no NVIDIA
+    if systemctl --user is-active waywallen.service &>/dev/null; then
+        return 1
     fi
     return 0
+}
+
+install_waywallen_launcher() {
+    local bin="${HOME}/.local/bin/waywallen"
+    local desktop_src="$PANDORA_ROOT/assets/waywallen/org.waywallen.waywallen.desktop"
+    local icon_src="$PANDORA_ROOT/assets/waywallen/org.waywallen.waywallen.svg"
+    local desktop_dst icon_dst apps_dir icons_dir
+
+    [[ -x "$bin" ]] || {
+        warn "Waywallen binário ausente: $bin"
+        return 1
+    }
+
+    apps_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    icons_dir="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
+    desktop_dst="$(waywallen_desktop_path)"
+    icon_dst="$(waywallen_icon_path)"
+    mkdir -p "$apps_dir" "$icons_dir"
+
+    if [[ -f "$icon_src" ]]; then
+        cp -f "$icon_src" "$icon_dst"
+    else
+        warn "Ícone Waywallen ausente em $icon_src"
+    fi
+
+    if [[ -f "$desktop_src" ]]; then
+        sed -e "s|^Exec=.*|Exec=${bin}|" \
+            -e "s|^Icon=.*|Icon=org.waywallen.waywallen|" \
+            "$desktop_src" >"$desktop_dst"
+    else
+        cat >"$desktop_dst" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Waywallen
+GenericName=Wallpaper Manager for Linux
+Comment=Wallpaper Manager for Linux
+Exec=${bin}
+Icon=org.waywallen.waywallen
+Terminal=false
+Categories=Graphics;Qt;
+Keywords=wallpaper;pipewire;vulkan;
+StartupNotify=true
+EOF
+    fi
+    chmod 644 "$desktop_dst"
+
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database "$apps_dir" 2>/dev/null || true
+    fi
+    if command -v gtk-update-icon-cache &>/dev/null; then
+        gtk-update-icon-cache -f "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" 2>/dev/null || true
+    fi
+    log "Waywallen launcher: $desktop_dst"
 }
 
 user_unit_enabled() {
@@ -171,6 +240,27 @@ deploy_overlays() {
     deploy_thunar_overlays
     deploy_systemd_units
     deploy_user_icon
+    deploy_wallpaper_qml
+}
+
+deploy_wallpaper_qml() {
+    local src="$PANDORA_ROOT/overlays/quickshell/modules/background/Wallpaper.qml"
+    local sibling="$PANDORA_ROOT/../shell/modules/background/Wallpaper.qml"
+    local dest_dirs=(
+        "${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/caelestia/modules/background"
+        "${XDG_STATE_HOME:-$HOME/.local/state}/pandora/build/shell/modules/background"
+    )
+    local d
+
+    # Prefer fork irmão atualizado, senão overlay embutido
+    [[ -f "$sibling" ]] && src="$sibling"
+    [[ -f "$src" ]] || return 0
+
+    for d in "${dest_dirs[@]}"; do
+        mkdir -p "$d"
+        cp -f "$src" "$d/Wallpaper.qml"
+    done
+    log "Wallpaper.qml: file:// Image (NVIDIA-safe)"
 }
 
 deploy_thunar_overlays() {
@@ -541,10 +631,12 @@ pandora_export_helpers() {
         log warn die require_cmd run_step model_config
         deploy_overlays deploy_user_icon patch_cli_json configure_keyboard_layout
         deploy_sddm_sudoers sync_sddm_theme deploy_systemd_units link_wallpapers
+        deploy_wallpaper_qml
         ensure_paru pacman_install aur_install aur_install_one clone_or_pull install_audio_stack
         pandora_pkg_alias pkg_in_repos pkg_in_aur pkg_available
         skip_if_ready pandora_cli_ready pandora_shell_ready caelestia_dots_ready
         pandora_overlays_ready scheme_inferno_ready waywallen_ready user_unit_enabled
+        install_waywallen_launcher
         ensure_caelestia_cli_deps
         is_cachyos ensure_cachyos_repos cachyos_pkg_available cachyos_preferred_pkg
         cachyos_should_skip_pkg cachyos_list_kernel_packages

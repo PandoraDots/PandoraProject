@@ -63,10 +63,9 @@ for _, tile in ipairs(dash) do
 end
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("systemctl --user start waywallen.service")
     hl.exec_cmd("systemctl --user start pandora-gpu-profile.path")
     hl.exec_cmd("__PANDORA_ROOT__/scripts/gpu-profile.sh")
-    -- Reaplica wallpaper Waywallen após o daemon subir
+    -- Aplica wallpaper via Caelestia (Waywallen daemon no NVIDIA fica preto)
     hl.exec_cmd("sleep 1 && __PANDORA_ROOT__/scripts/waywallen-bridge.sh")
     hl.exec_cmd("sleep 2 && __PANDORA_ROOT__/scripts/workspace-dashboard.sh")
 end)

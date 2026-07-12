@@ -88,14 +88,16 @@
             "~/.config/cava/config",
             "~/.config/fish/functions/fish_greeting.fish",
             "~/.config/caelestia/gpu-profile.env",
-            "~/.local/bin/waywallen"
+            "~/.local/bin/waywallen",
+            "~/.local/share/applications/org.waywallen.waywallen.desktop"
         ],
         "optional": [
             "~/.face",
             "~/Pictures/Wallpapers",
             "$PANDORA_ROOT/Wallpapers/glassesredjapan.jpg",
             "~/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
-            "~/.config/user-dirs.dirs"
+            "~/.config/user-dirs.dirs",
+            "~/.local/share/icons/hicolor/scalable/apps/org.waywallen.waywallen.svg"
         ]
     },
     "file_contains": [
@@ -157,7 +159,6 @@
     },
     "systemd_user": {
         "required": [
-            "waywallen.service",
             "pandora-gpu-profile.path"
         ],
         "optional": [
