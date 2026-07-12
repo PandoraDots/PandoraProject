@@ -6,7 +6,7 @@ run_step "Teclado padrão (br-abnt2)" configure_keyboard_layout
 
 session_install_sddm() {
     pacman_install sddm qt6-5compat
-    aur_install_one caelestia-sddm-locklike-git
+    install_caelestia_sddm_fork
 
     deploy_pandora_sddm_conf
 
@@ -14,11 +14,11 @@ session_install_sddm() {
     sudo systemctl enable sddm.service
 }
 
-run_step "Display manager (SDDM + tema Caelestia)" session_install_sddm
+run_step "Display manager (SDDM + tema Caelestia fork)" session_install_sddm
 
 deploy_sddm_sudoers
 
-run_step "Sessão Hyprland uwsm (-g 0)" install_hyprland_uwsm_session
+run_step "Sessão Hyprland (start-hyprland, sem UWSM)" install_hyprland_session
 
 session_install_uwsm() {
     if pkg_in_repos uwsm; then

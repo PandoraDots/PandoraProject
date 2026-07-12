@@ -16,8 +16,11 @@ deploy_pandora_sddm_conf
 log "Sudoers SDDM + whitekat..."
 deploy_sddm_sudoers
 
-log "Sessão uwsm -g -1 + wrapper wayland-session..."
-install_hyprland_uwsm_session
+log "Sessão start-hyprland (sem UWSM) + wrapper wayland-session..."
+install_hyprland_session
+
+log "Tema SDDM do fork PandoraDots..."
+install_caelestia_sddm_fork
 
 log "Sync tema + whitekat..."
 sync_sddm_theme
