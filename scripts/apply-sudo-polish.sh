@@ -36,7 +36,7 @@ pkill -u "$USER" -f 'waywallen.*--no-ui' 2>/dev/null || true
 log "Aplicando overlay (Caelestia wallpaper habilitado)..."
 deploy_overlays
 deploy_pandora_sddm_conf 2>/dev/null || true
-install_hyprland_uwsm_session 2>/dev/null || true
+install_hyprland_session 2>/dev/null || true
 deploy_systemd_units 2>/dev/null || true
 sync_sddm_theme 2>/dev/null || true
 

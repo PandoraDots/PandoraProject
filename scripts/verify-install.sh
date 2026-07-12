@@ -182,18 +182,30 @@ check_cachyos_drivers() {
 }
 
 check_sddm() {
-    local theme keyboard dest_bg src_wall session_desktop session_desktop_share
+    local theme keyboard dest_bg src_wall session_desktop session_uwsm
     theme="$(jq -r '.sddm.theme // empty' "$MANIFEST")"
     keyboard="$(jq -r '.sddm.keyboard // empty' "$MANIFEST")"
     dest_bg="/usr/share/sddm/themes/caelestia/assets/background"
     src_wall="${PANDORA_ROOT}/Wallpapers/whitekat.jpg"
-    session_desktop="/usr/local/share/wayland-sessions/hyprland-uwsm.desktop"
-    session_desktop_share="/usr/share/wayland-sessions/hyprland-uwsm.desktop"
+    session_desktop="/usr/local/share/wayland-sessions/hyprland.desktop"
+    session_uwsm="/usr/local/share/wayland-sessions/hyprland-uwsm.desktop"
 
     if [[ -n "$theme" && -d "/usr/share/sddm/themes/$theme" ]]; then
         report OK "sddm: tema $theme instalado"
     else
         report FAIL "sddm: tema ${theme:-caelestia} ausente"
+    fi
+
+    if pacman -Qi caelestia-sddm-locklike-git &>/dev/null; then
+        local pkg_url
+        pkg_url="$(pacman -Qi caelestia-sddm-locklike-git 2>/dev/null | awk -F': ' '/^URL/{print $2; exit}')"
+        if [[ "$pkg_url" == *PandoraDots/caelestia-sddm* ]]; then
+            report OK "sddm: pacote locklike URL PandoraDots"
+        else
+            report FAIL "sddm: pacote locklike URL=$pkg_url (esperado PandoraDots)"
+        fi
+    else
+        report FAIL "sddm: caelestia-sddm-locklike-git não instalado"
     fi
 
     if [[ -f /etc/sddm.conf.d/pandora.conf ]] && grep -q "Current=$theme" /etc/sddm.conf.d/pandora.conf 2>/dev/null; then
@@ -208,18 +220,16 @@ check_sddm() {
         report FAIL "sddm: DisplayServer deveria ser x11-user (evita falha weston)"
     fi
 
-    if [[ -f "$session_desktop" ]] && grep -qE 'uwsm start -g -1' "$session_desktop"; then
-        report OK "sddm: /usr/local/.../hyprland-uwsm.desktop com -g -1"
+    if [[ -f "$session_desktop" ]] && grep -qE '^Exec=/usr/bin/start-hyprland$' "$session_desktop"; then
+        report OK "sddm: /usr/local/.../hyprland.desktop = start-hyprland"
     else
-        report FAIL "sddm: falta /usr/local/.../hyprland-uwsm.desktop com -g -1 (greeter não lê ~/.local)"
+        report FAIL "sddm: falta /usr/local/.../hyprland.desktop com Exec=start-hyprland"
     fi
 
-    if [[ -f "$session_desktop_share" ]] && ! grep -qE 'uwsm start -g -1' "$session_desktop_share"; then
-        if [[ -f "$session_desktop" ]] && grep -qE 'uwsm start -g -1' "$session_desktop"; then
-            report OK "sddm: /usr/share sem -g -1 (ok — /usr/local tem prioridade)"
-        else
-            report FAIL "sddm: só /usr/share/hyprland-uwsm.desktop sem -g -1 — SDDM usará Exec lento"
-        fi
+    if [[ -f "$session_uwsm" ]] && grep -qE '^Hidden=true$' "$session_uwsm"; then
+        report OK "sddm: hyprland-uwsm.desktop Hidden=true"
+    else
+        report WARN "sddm: hyprland-uwsm.desktop não oculto em /usr/local"
     fi
 
     if [[ -x /usr/local/lib/pandora/wayland-session ]]; then
@@ -236,10 +246,10 @@ check_sddm() {
     fi
 
     if [[ -f /etc/sddm.conf.d/pandora.conf ]] \
-        && grep -qE '^DefaultSession=hyprland-uwsm.desktop$' /etc/sddm.conf.d/pandora.conf; then
-        report OK "sddm: DefaultSession=hyprland-uwsm.desktop"
+        && grep -qE '^DefaultSession=hyprland.desktop$' /etc/sddm.conf.d/pandora.conf; then
+        report OK "sddm: DefaultSession=hyprland.desktop"
     else
-        report WARN "sddm: DefaultSession não é hyprland-uwsm.desktop"
+        report FAIL "sddm: DefaultSession deveria ser hyprland.desktop"
     fi
 
     if [[ -f "$src_wall" && -f "$dest_bg" ]] && command -v md5sum &>/dev/null; then

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Hyprland
+Comment=Pandora / Caelestia (sem UWSM — login SDDM confiável)
+Exec=/usr/bin/start-hyprland
+TryExec=/usr/bin/start-hyprland
+DesktopNames=Hyprland
+Type=Application

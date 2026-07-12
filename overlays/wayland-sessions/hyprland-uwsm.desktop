@@ -1,7 +1,9 @@
 [Desktop Entry]
 Name=Hyprland (uwsm-managed)
-Comment=An intelligent dynamic tiling Wayland compositor
+Comment=UWSM oculto — causa Session started false / greeter duplo no SDDM+NVIDIA
 Exec=uwsm start -g -1 -e -D Hyprland hyprland.desktop
 TryExec=uwsm
 DesktopNames=Hyprland
 Type=Application
+Hidden=true
+NoDisplay=true

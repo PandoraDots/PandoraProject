@@ -439,32 +439,32 @@ sync_sddm_theme() {
     fi
 }
 
-install_hyprland_uwsm_session() {
-    local src="$PANDORA_ROOT/overlays/wayland-sessions/hyprland-uwsm.desktop"
-    local wrapper_src="$PANDORA_ROOT/scripts/pandora-wayland-session.sh"
-    # SDDM greeter (user sddm) não lê ~/.local — prioridade: /usr/local/share
+install_hyprland_session() {
     local system_dir="/usr/local/share/wayland-sessions"
-    local system_dest="$system_dir/hyprland-uwsm.desktop"
     local user_dir="${XDG_DATA_HOME:-$HOME/.local/share}/wayland-sessions"
-    local user_dest="$user_dir/hyprland-uwsm.desktop"
+    local wrapper_src="$PANDORA_ROOT/scripts/pandora-wayland-session.sh"
     local wrapper_dest="/usr/local/lib/pandora/wayland-session"
-    local content
-
-    if [[ -f "$src" ]]; then
-        content="$(cat "$src")"
-    else
-        content='[Desktop Entry]
-Name=Hyprland (uwsm-managed)
-Comment=An intelligent dynamic tiling Wayland compositor
-Exec=uwsm start -g -1 -e -D Hyprland hyprland.desktop
-TryExec=uwsm
-DesktopNames=Hyprland
-Type=Application'
-    fi
+    local hypr_src="$PANDORA_ROOT/overlays/wayland-sessions/hyprland.desktop"
+    local uwsm_src="$PANDORA_ROOT/overlays/wayland-sessions/hyprland-uwsm.desktop"
 
     sudo mkdir -p "$system_dir" "$(dirname "$wrapper_dest")"
-    printf '%s\n' "$content" | sudo tee "$system_dest" >/dev/null
-    sudo chmod 644 "$system_dest"
+    mkdir -p "$user_dir"
+
+    # Sessão padrão: start-hyprland (sem UWSM — evita Session started false no SDDM)
+    if [[ -f "$hypr_src" ]]; then
+        sudo cp -f "$hypr_src" "$system_dir/hyprland.desktop"
+        cp -f "$hypr_src" "$user_dir/hyprland.desktop"
+    else
+        warn "Overlay hyprland.desktop ausente"
+    fi
+    sudo chmod 644 "$system_dir/hyprland.desktop" 2>/dev/null || true
+
+    # UWSM oculto no seletor (não usar no login SDDM)
+    if [[ -f "$uwsm_src" ]]; then
+        sudo cp -f "$uwsm_src" "$system_dir/hyprland-uwsm.desktop"
+        cp -f "$uwsm_src" "$user_dir/hyprland-uwsm.desktop"
+        sudo chmod 644 "$system_dir/hyprland-uwsm.desktop" 2>/dev/null || true
+    fi
 
     if [[ -f "$wrapper_src" ]]; then
         sudo cp -f "$wrapper_src" "$wrapper_dest"
@@ -473,12 +473,46 @@ Type=Application'
         warn "Wrapper wayland-session ausente: $wrapper_src"
     fi
 
-    # Espelho opcional (não é o que o greeter usa)
-    mkdir -p "$user_dir"
-    printf '%s\n' "$content" >"$user_dest"
-    chmod 644 "$user_dest"
+    log "Sessão Wayland: $system_dir/hyprland.desktop (start-hyprland) + SessionCommand=$wrapper_dest"
+}
 
-    log "Sessão Wayland: $system_dest (uwsm -g -1) + SessionCommand=$wrapper_dest"
+# Compat: callers antigos
+install_hyprland_uwsm_session() {
+    install_hyprland_session
+}
+
+install_caelestia_sddm_fork() {
+    local fork_root
+    fork_root="$(cd "${PANDORA_CAELESTIA_SDDM:-$PANDORA_ROOT/../caelestia-sddm}" && pwd)"
+    local aur_dir="$fork_root/aur"
+    local build_dir pkg
+
+    if [[ ! -f "$aur_dir/PKGBUILD" ]]; then
+        die "Fork caelestia-sddm ausente: $aur_dir/PKGBUILD (clone https://github.com/PandoraDots/caelestia-sddm.git)"
+    fi
+    if [[ ! -d "$fork_root/.git" ]]; then
+        die "Fork caelestia-sddm sem .git: $fork_root"
+    fi
+    if ! grep -q 'PandoraDots/caelestia-sddm' "$aur_dir/PKGBUILD"; then
+        die "PKGBUILD sem URL PandoraDots: $aur_dir/PKGBUILD"
+    fi
+
+    log "Instalando caelestia-sddm-locklike-git do fork local: $fork_root"
+    build_dir="$(mktemp -d)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$build_dir'" RETURN
+    cp -a "$aur_dir/." "$build_dir/"
+    # Empacota a partir do clone local (não baixa do AUR/upstream)
+    sed -i "s|^source=.*|source=(\"\${pkgbase}::git+file://${fork_root}\")|" "$build_dir/PKGBUILD"
+
+    (
+        cd "$build_dir"
+        makepkg -f --noconfirm --noprogressbar
+        pkg="$(ls -1 caelestia-sddm-locklike-git-*.pkg.tar.* 2>/dev/null | head -1)"
+        [[ -n "$pkg" ]] || die "Pacote locklike não gerado em $build_dir"
+        sudo pacman -U --noconfirm "$pkg"
+    )
+    log "Tema SDDM Caelestia (fork PandoraDots) instalado"
 }
 
 deploy_pandora_sddm_conf() {
@@ -494,10 +528,14 @@ Current=caelestia
 [General]
 Numlock=on
 DisplayServer=x11-user
+DefaultSession=hyprland.desktop
+
+[Wayland]
+SessionCommand=/usr/local/lib/pandora/wayland-session
 EOF
     fi
     sudo chmod 644 /etc/sddm.conf.d/pandora.conf
-    log "SDDM: DisplayServer=x11-user (greeter X11 estável)"
+    log "SDDM: DisplayServer=x11-user DefaultSession=hyprland.desktop"
 }
 
 deploy_systemd_units() {
@@ -712,7 +750,8 @@ pandora_export_helpers() {
         log warn die require_cmd run_step model_config
         deploy_overlays deploy_user_icon patch_cli_json configure_keyboard_layout
         deploy_sddm_sudoers sync_sddm_theme deploy_systemd_units link_wallpapers
-        deploy_wallpaper_qml
+        deploy_wallpaper_qml deploy_pandora_sddm_conf
+        install_hyprland_session install_hyprland_uwsm_session install_caelestia_sddm_fork
         ensure_paru pacman_install aur_install aur_install_one clone_or_pull install_audio_stack
         pandora_pkg_alias pkg_in_repos pkg_in_aur pkg_available
         skip_if_ready pandora_cli_ready pandora_shell_ready caelestia_dots_ready
