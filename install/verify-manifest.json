@@ -36,7 +36,11 @@
             "power-profiles-daemon",
             "qtengine",
             "libcava",
-            "darkly-bin"
+            "darkly-bin",
+            "gvfs",
+            "fuse2",
+            "tumbler",
+            "thunar-volman"
         ],
         "optional": [
             "pipewire-jack",
@@ -48,7 +52,8 @@
             "zapzap",
             "planify",
             "freedownloadmanager",
-            "vlc"
+            "vlc",
+            "gvfs-mtp"
         ],
         "cachyos_drivers": true
     },
@@ -69,7 +74,8 @@
             "cmatrix",
             "tty-clock",
             "cursor",
-            "spotify"
+            "spotify",
+            "spicetify"
         ]
     },
     "files": {
@@ -87,7 +93,9 @@
         "optional": [
             "~/.face",
             "~/Pictures/Wallpapers",
-            "$PANDORA_ROOT/Wallpapers/glassesredjapan.jpg"
+            "$PANDORA_ROOT/Wallpapers/glassesredjapan.jpg",
+            "~/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
+            "~/.config/user-dirs.dirs"
         ]
     },
     "file_contains": [
@@ -100,6 +108,26 @@
             "path": "~/.config/caelestia/hypr-user.lua",
             "pattern": "pandora-info",
             "label": "dashboard workspace 1"
+        },
+        {
+            "path": "~/.config/caelestia/hypr-vars.lua",
+            "pattern": "SUPER + G",
+            "label": "Super+G Spotify/Spicetify"
+        },
+        {
+            "path": "~/.config/caelestia/shell.json",
+            "pattern": "\"recolour\": true",
+            "label": "recolour icons ativo"
+        },
+        {
+            "path": "~/.config/user-dirs.dirs",
+            "pattern": "XDG_PICTURES_DIR=\"$HOME/Pictures\"",
+            "label": "user-dirs Pictures (English)"
+        },
+        {
+            "path": "~/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
+            "pattern": "THUNAR_EXECUTE_SHELL_SCRIPT_ASK",
+            "label": "Thunar shell scripts ASK"
         },
         {
             "path": "~/.config/fastfetch/config.jsonc",
@@ -143,8 +171,12 @@
     "scheme": {
         "name": "inferno"
     },
-    "runtime_info": [
-        "Sessão Hyprland ativa (hyprctl monitors)",
-        "Janelas pandora-* na workspace 1 (pós-login)"
-    ]
+    "runtime_checks": {
+        "hypr_monitor_position": true,
+        "hypr_config_errors": true,
+        "caelestia_shell": true,
+        "dashboard_windows": true,
+        "spicetify_theme": true,
+        "waywallen_wallpaper": true
+    }
 }

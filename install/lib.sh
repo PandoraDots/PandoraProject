@@ -60,12 +60,25 @@ ensure_caelestia_cli_deps() {
     sudo python -m pip install --break-system-packages materialyoucolor
 }
 
+pandora_shell_qsconf() {
+    local conf
+    for conf in \
+        /etc/xdg/quickshell/caelestia/shell.qml \
+        "${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/caelestia/shell.qml"
+    do
+        [[ -f "$conf" ]] && { printf '%s' "$conf"; return 0; }
+    done
+    return 1
+}
+
 pandora_shell_ready() {
-    command -v qs &>/dev/null
+    # qs (quickshell-git) sozinho não basta — precisa do shell.qml do caelestia-shell
+    command -v qs &>/dev/null && pandora_shell_qsconf &>/dev/null
 }
 
 caelestia_dots_ready() {
-    [[ -f "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.conf" ]]
+    local hypr="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+    [[ -f "$hypr/hyprland.lua" || -f "$hypr/hyprland.conf" ]]
 }
 
 pandora_overlays_ready() {
@@ -83,6 +96,18 @@ waywallen_ready() {
     [[ -x "${HOME}/.local/bin/waywallen" ]]
 }
 
+wallpaper_ready() {
+    local last wall_db count
+    last="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/waywallen-last.txt"
+    wall_db="${XDG_DATA_HOME:-$HOME/.local/share}/waywallen/waywallen-v2.db"
+    [[ -f "$last" ]] || return 1
+    if [[ -f "$wall_db" ]] && command -v sqlite3 &>/dev/null; then
+        count="$(sqlite3 "$wall_db" 'SELECT COUNT(*) FROM item;' 2>/dev/null || echo 0)"
+        [[ "${count:-0}" -gt 0 ]] || return 1
+    fi
+    return 0
+}
+
 user_unit_enabled() {
     local unit="$1"
     systemctl --user is-enabled "$unit" &>/dev/null
@@ -95,6 +120,18 @@ model_config() {
     printf '%s' "$file"
 }
 
+validate_hypr_user_monitor() {
+    local path="${1:-$PANDORA_CONFIG/hypr-user.lua}"
+    local pos
+    [[ -f "$path" ]] || return 0
+    pos="$(grep -E '^\s*position\s*=' "$path" | head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/' || true)"
+    [[ -z "$pos" ]] && return 0
+    if [[ "$pos" =~ ^auto(-center)?(-(up|down|left|right))?$ || "$pos" =~ ^-?[0-9]+x-?[0-9]+$ ]]; then
+        return 0
+    fi
+    die "hypr-user.lua: position='$pos' inválido (Hyprland exige '0x0' ou 'auto', não '0,0') — $path"
+}
+
 deploy_overlays() {
     local src="$PANDORA_ROOT/overlays"
     local dest="$PANDORA_CONFIG"
@@ -104,6 +141,7 @@ deploy_overlays() {
             cp "$src/$f" "$dest/$f"
             if [[ "$f" == "hypr-user.lua" ]]; then
                 sed -i "s|__PANDORA_ROOT__|$PANDORA_ROOT|g" "$dest/$f"
+                validate_hypr_user_monitor "$dest/$f"
             fi
             if [[ "$f" == "cli.json" ]]; then
                 patch_cli_json
@@ -130,8 +168,102 @@ deploy_overlays() {
             "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions/fish_greeting.fish"
         log "Overlay: fish/functions/fish_greeting.fish"
     fi
+    deploy_thunar_overlays
     deploy_systemd_units
     deploy_user_icon
+}
+
+deploy_thunar_overlays() {
+    local src="$PANDORA_ROOT/overlays"
+    local xfce_dest="${XDG_CONFIG_HOME:-$HOME/.config}/xfce4/xfconf/xfce-perchannel-xml"
+    local thunar_dest="${XDG_CONFIG_HOME:-$HOME/.config}/Thunar"
+
+    if [[ -f "$src/xfce4/xfconf/xfce-perchannel-xml/thunar.xml" ]]; then
+        mkdir -p "$xfce_dest"
+        if [[ -f "$xfce_dest/thunar.xml" ]]; then
+            if grep -q 'misc-exec-shell-scripts-by-default' "$xfce_dest/thunar.xml" 2>/dev/null; then
+                sed -i 's|value="THUNAR_EXECUTE_SHELL_SCRIPT_[A-Z_]*"|value="THUNAR_EXECUTE_SHELL_SCRIPT_ASK"|' \
+                    "$xfce_dest/thunar.xml"
+            else
+                sed -i 's|</channel>|  <property name="misc-exec-shell-scripts-by-default" type="string" value="THUNAR_EXECUTE_SHELL_SCRIPT_ASK"/>\n</channel>|' \
+                    "$xfce_dest/thunar.xml"
+            fi
+        else
+            cp "$src/xfce4/xfconf/xfce-perchannel-xml/thunar.xml" "$xfce_dest/thunar.xml"
+        fi
+        if command -v xfconf-query &>/dev/null; then
+            xfconf-query -c thunar -p /misc-exec-shell-scripts-by-default \
+                -n -t string -s THUNAR_EXECUTE_SHELL_SCRIPT_ASK 2>/dev/null \
+                || xfconf-query -c thunar -p /misc-exec-shell-scripts-by-default \
+                    -s THUNAR_EXECUTE_SHELL_SCRIPT_ASK 2>/dev/null || true
+        fi
+        log "Overlay: thunar shell-scripts ASK"
+    fi
+
+    if [[ -f "$src/Thunar/thunar-volman.xml" ]]; then
+        mkdir -p "$thunar_dest"
+        cp "$src/Thunar/thunar-volman.xml" "$thunar_dest/thunar-volman.xml"
+        log "Overlay: Thunar/thunar-volman.xml"
+    fi
+}
+
+# XDG user dirs em inglês (Documents/Pictures/…) — evita desalinhamento com Wallpapers.
+setup_english_user_dirs() {
+    local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local dirs_file="$cfg/user-dirs.dirs"
+    local locale_file="$cfg/user-dirs.locale"
+    local -A map=(
+        ["Área de trabalho"]="Desktop"
+        ["Documentos"]="Documents"
+        ["Downloads"]="Downloads"
+        ["Músicas"]="Music"
+        ["Imagens"]="Pictures"
+        ["Vídeos"]="Videos"
+        ["Modelos"]="Templates"
+        ["Público"]="Public"
+        ["Projetos"]="Projects"
+    )
+    local old new item
+    mkdir -p "$cfg"
+    for old in "${!map[@]}"; do
+        new="${map[$old]}"
+        if [[ -d "$HOME/$old" && ! -e "$HOME/$new" ]]; then
+            mv "$HOME/$old" "$HOME/$new"
+            log "user-dirs: $old -> $new"
+        elif [[ -d "$HOME/$old" && -d "$HOME/$new" ]]; then
+            shopt -s dotglob nullglob
+            for item in "$HOME/$old"/*; do
+                [[ -e "$item" ]] || continue
+                mv -n "$item" "$HOME/$new/" 2>/dev/null || true
+            done
+            shopt -u dotglob nullglob
+            rmdir "$HOME/$old" 2>/dev/null || true
+        fi
+        mkdir -p "$HOME/$new"
+    done
+
+    cat >"$dirs_file" <<'EOF'
+# PandoraProject — XDG user dirs (English)
+XDG_DESKTOP_DIR="$HOME/Desktop"
+XDG_DOWNLOAD_DIR="$HOME/Downloads"
+XDG_TEMPLATES_DIR="$HOME/Templates"
+XDG_PUBLICSHARE_DIR="$HOME/Public"
+XDG_DOCUMENTS_DIR="$HOME/Documents"
+XDG_MUSIC_DIR="$HOME/Music"
+XDG_PICTURES_DIR="$HOME/Pictures"
+XDG_VIDEOS_DIR="$HOME/Videos"
+XDG_PROJECTS_DIR="$HOME/Projects"
+EOF
+    printf 'en_US\n' >"$locale_file"
+    export XDG_DESKTOP_DIR="$HOME/Desktop"
+    export XDG_DOWNLOAD_DIR="$HOME/Downloads"
+    export XDG_TEMPLATES_DIR="$HOME/Templates"
+    export XDG_PUBLICSHARE_DIR="$HOME/Public"
+    export XDG_DOCUMENTS_DIR="$HOME/Documents"
+    export XDG_MUSIC_DIR="$HOME/Music"
+    export XDG_PICTURES_DIR="$HOME/Pictures"
+    export XDG_VIDEOS_DIR="$HOME/Videos"
+    log "user-dirs: English (Documents/Pictures/…)"
 }
 
 deploy_user_icon() {
@@ -218,7 +350,11 @@ deploy_systemd_units() {
 }
 
 link_wallpapers() {
+    local dirs_file="${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
+    # shellcheck disable=SC1090
+    [[ -f "$dirs_file" ]] && source "$dirs_file"
     local pictures="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+    pictures="${pictures/#\$HOME/$HOME}"
     local target="$pictures/Wallpapers"
     mkdir -p "$pictures"
     if [[ -L "$target" ]]; then

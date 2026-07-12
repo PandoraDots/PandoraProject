@@ -9,6 +9,19 @@ STATE="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/dashboard-launched"
 command -v hyprctl >/dev/null 2>&1 || exit 0
 command -v foot >/dev/null 2>&1 || exit 0
 
+# Hyprland ≥0.55 (Lua): hyprctl dispatch usa hl.dsp.*
+hypr_dispatch() {
+    hyprctl dispatch "$1" >/dev/null
+}
+
+hypr_exec() {
+    local cmd="$1"
+    # Escapa aspas para literal Lua
+    cmd="${cmd//\\/\\\\}"
+    cmd="${cmd//\"/\\\"}"
+    hypr_dispatch "hl.dsp.exec_cmd(\"${cmd}\")"
+}
+
 if [[ -f "$STATE" ]]; then
     if hyprctl clients -j 2>/dev/null | jq -e \
         '.[] | select(.workspace.id == 1 and (.class | startswith("pandora-")))' >/dev/null 2>&1; then
@@ -20,12 +33,12 @@ fi
 mkdir -p "$(dirname "$STATE")"
 touch "$STATE"
 
+hypr_dispatch "hl.dsp.focus({ workspace = 1 })"
+
 launch() {
-    hyprctl dispatch exec "[workspace 1 silent] $1" >/dev/null
+    hypr_exec "$1"
     sleep 0.35
 }
-
-hyprctl dispatch workspace 1 >/dev/null
 
 launch "env PANDORA_DASHBOARD=1 foot -a pandora-info -T pandora-info fish -C 'set -gx PANDORA_DASHBOARD 1; fastfetch; exec fish'"
 launch "env PANDORA_DASHBOARD=1 foot -a pandora-btop -T pandora-btop fish -C 'set -x PANDORA_DASHBOARD 1; exec btop'"
@@ -33,4 +46,4 @@ launch "env PANDORA_DASHBOARD=1 foot -a pandora-cava -T pandora-cava fish -C 'se
 launch "env PANDORA_DASHBOARD=1 foot -a pandora-cmatrix -T pandora-cmatrix fish -C 'set -x PANDORA_DASHBOARD 1; exec cmatrix -C red -s'"
 launch "env PANDORA_DASHBOARD=1 foot -a pandora-clock -T pandora-clock fish -C 'set -x PANDORA_DASHBOARD 1; exec tty-clock -c -C 1 -b -n'"
 
-hyprctl dispatch workspace 1 >/dev/null
+hypr_dispatch "hl.dsp.focus({ workspace = 1 })"

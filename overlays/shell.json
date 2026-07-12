@@ -9,6 +9,9 @@
         "wallpaperDir": "~/Pictures/Wallpapers"
     },
     "bar": {
+        "tray": {
+            "recolour": true
+        },
         "workspaces": {
             "specialWorkspaceIcons": [
                 {

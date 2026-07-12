@@ -1,0 +1,7 @@
+<?xml version="1.1" encoding="UTF-8"?>
+
+<channel name="thunar" version="1.0">
+  <property name="misc-single-click" type="bool" value="false"/>
+  <property name="misc-middle-click-in-tab" type="bool" value="true"/>
+  <property name="misc-exec-shell-scripts-by-default" type="string" value="THUNAR_EXECUTE_SHELL_SCRIPT_ASK"/>
+</channel>

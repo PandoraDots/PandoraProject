@@ -4,11 +4,11 @@ hl.config({
     input = {
         kb_layout  = "br",
         kb_variant = "abnt2",
+        kb_options = "",
     },
 })
 
-local function load_gpu_env()
-    local path = os.getenv("HOME") .. "/.config/caelestia/gpu-profile.env"
+local function load_env_file(path)
     local f = io.open(path, "r")
     if not f then return end
     for line in f:lines() do
@@ -21,12 +21,14 @@ local function load_gpu_env()
     f:close()
 end
 
-load_gpu_env()
+local cfg = os.getenv("HOME") .. "/.config/caelestia"
+load_env_file(cfg .. "/gpu-profile.env")
+load_env_file(cfg .. "/shell-qml.env")
 
 hl.monitor({
     output   = "",
     mode     = "2560x1600@240",
-    position = "0,0",
+    position = "0x0",
     scale    = 1.25,
 })
 
@@ -64,6 +66,8 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("systemctl --user start waywallen.service")
     hl.exec_cmd("systemctl --user start pandora-gpu-profile.path")
     hl.exec_cmd("__PANDORA_ROOT__/scripts/gpu-profile.sh")
+    -- Reaplica wallpaper Waywallen após o daemon subir
+    hl.exec_cmd("sleep 1 && __PANDORA_ROOT__/scripts/waywallen-bridge.sh")
     hl.exec_cmd("sleep 2 && __PANDORA_ROOT__/scripts/workspace-dashboard.sh")
 end)
 

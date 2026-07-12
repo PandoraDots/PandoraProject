@@ -36,6 +36,13 @@ fi
 
 run_step "Ícone de usuário (~/.face)" deploy_user_icon
 
+postinstall_user_dirs() {
+    setup_english_user_dirs
+    link_wallpapers
+}
+run_step "XDG user dirs (English)" postinstall_user_dirs
+run_step "Thunar ASK + volman" deploy_thunar_overlays
+
 if ! skip_if_ready "Schema inferno" scheme_inferno_ready; then
     run_step "Schema inferno" caelestia scheme set -n inferno -f default -m dark
 fi
@@ -44,14 +51,13 @@ postinstall_wallpaper() {
     if [[ -f "$DEFAULT_WALL" ]]; then
         caelestia wallpaper -f "$DEFAULT_WALL" -N 2>/dev/null || \
         bash "$PANDORA_ROOT/scripts/wallpaper-posthook.sh" "$DEFAULT_WALL"
+        bash "$PANDORA_ROOT/scripts/waywallen-bridge.sh" "$DEFAULT_WALL" || true
     else
         warn "Wallpaper padrão não encontrado: $DEFAULT_WALL"
     fi
 }
 
-if ! skip_if_ready "Wallpaper padrão" bash -c "
-    [[ -f '${XDG_STATE_HOME:-$HOME/.local/state}/pandora/waywallen-last.txt' ]]
-"; then
+if ! skip_if_ready "Wallpaper padrão" wallpaper_ready; then
     run_step "Wallpaper padrão" postinstall_wallpaper
 fi
 
@@ -80,7 +86,42 @@ fi
 
 run_step "Iniciar serviços user" bash -c '
     systemctl --user start waywallen.service 2>/dev/null || true
-    caelestia shell -d >/dev/null 2>&1 || true
+    if ! command -v qs >/dev/null || ! pandora_shell_qsconf >/dev/null 2>&1; then
+        warn "caelestia shell não instalado (rode install/30-caelestia-build.sh)"
+    elif caelestia shell -d >/dev/null 2>&1; then
+        log "caelestia shell iniciado"
+    else
+        warn "caelestia shell falhou ao iniciar — veja: caelestia shell -l"
+    fi
 '
+
+postinstall_spicetify() {
+    command -v spicetify &>/dev/null || {
+        warn "spicetify-cli ausente — pulando"
+        return 0
+    }
+    command -v spotify &>/dev/null || pacman -Qi spotify &>/dev/null || {
+        warn "spotify ausente — pulando spicetify apply"
+        return 0
+    }
+
+    # Spicetify precisa escrever em /opt/spotify
+    if [[ -d /opt/spotify ]]; then
+        sudo chmod a+wr /opt/spotify 2>/dev/null || true
+        sudo chmod a+wr /opt/spotify/Apps -R 2>/dev/null || true
+    fi
+
+    spicetify config current_theme caelestia color_scheme caelestia custom_apps marketplace 2>/dev/null || true
+    if ! spicetify backup apply 2>/dev/null; then
+        spicetify apply 2>/dev/null || warn "spicetify apply falhou — rode: sudo chmod a+wr /opt/spotify && spicetify backup apply"
+    fi
+}
+
+if ! skip_if_ready "Spicetify tema caelestia" bash -c '
+    grep -q "^current_theme[ =]*caelestia" "${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/config-xpui.ini" 2>/dev/null \
+        && grep -qE "^version[ =]+.+" "${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/config-xpui.ini" 2>/dev/null
+'; then
+    run_step "Spicetify tema caelestia" postinstall_spicetify
+fi
 
 log "Pós-instalação concluída."
