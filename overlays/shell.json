@@ -1,6 +1,7 @@
 {
     "background": {
-        "wallpaperEnabled": false
+        "enabled": true,
+        "wallpaperEnabled": true
     },
     "services": {
         "smartScheme": false

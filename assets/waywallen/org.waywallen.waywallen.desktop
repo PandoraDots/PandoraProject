@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Waywallen
+GenericName=Wallpaper Manager for Linux
+Comment=Wallpaper Manager for Linux
+Exec=waywallen
+Icon=org.waywallen.waywallen
+Terminal=false
+Categories=Graphics;Qt;
+Keywords=wallpaper;pipewire;vulkan;waywallen;
+StartupNotify=true
+StartupWMClass=waywallen

@@ -334,41 +334,80 @@ check_spicetify_theme() {
 }
 
 check_waywallen_wallpaper() {
-    local last wall path_state db count
+    local last wall path_state desktop icon shell_json layers
     last="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/waywallen-last.txt"
     path_state="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/wallpaper/path.txt"
-    db="${XDG_DATA_HOME:-$HOME/.local/share}/waywallen/waywallen-v2.db"
+    desktop="$(waywallen_desktop_path)"
+    icon="$(waywallen_icon_path)"
+    shell_json="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/shell.json"
 
-    if ! command -v fusermount &>/dev/null && ! command -v fusermount3 &>/dev/null; then
-        report FAIL "waywallen: fusermount ausente (instale fuse2)"
+    if [[ -x "${HOME}/.local/bin/waywallen" ]]; then
+        report OK "waywallen: binário em ~/.local/bin/waywallen"
+    else
+        report FAIL "waywallen: binário ausente (~/.local/bin/waywallen)"
         return 1
     fi
-    report OK "waywallen: fusermount disponível"
 
-    if systemctl --user is-active waywallen.service &>/dev/null; then
-        report OK "waywallen: serviço ativo"
+    if [[ -f "$desktop" ]] && grep -qE '^Exec=.+' "$desktop"; then
+        report OK "waywallen: launcher desktop=$desktop"
     else
-        report WARN "waywallen: serviço inativo (normal fora da sessão gráfica)"
+        report FAIL "waywallen: .desktop ausente no launcher — rode install/50-waywallen.sh"
+        return 1
     fi
+
+    if [[ -f "$icon" ]]; then
+        report OK "waywallen: ícone=$icon"
+    else
+        report WARN "waywallen: ícone ausente ($icon)"
+    fi
+
+    # Daemon NÃO deve estar ativo: no NVIDIA o layer fica preto e cobre o Caelestia
+    if systemctl --user is-active waywallen.service &>/dev/null; then
+        report FAIL "waywallen: serviço ativo (layer preto no NVIDIA) — systemctl --user disable --now waywallen.service"
+        return 1
+    fi
+    if systemctl --user is-enabled waywallen.service &>/dev/null; then
+        report FAIL "waywallen: serviço habilitado no boot — systemctl --user disable waywallen.service"
+        return 1
+    fi
+    report OK "waywallen: daemon desabilitado (Caelestia renderiza wallpaper)"
 
     wall=""
-    [[ -f "$last" ]] && wall="$(cat "$last")"
-    [[ -z "$wall" && -f "$path_state" ]] && wall="$(cat "$path_state")"
+    [[ -f "$path_state" ]] && wall="$(cat "$path_state")"
+    [[ -z "$wall" && -f "$last" ]] && wall="$(cat "$last")"
     if [[ -n "$wall" && -f "$wall" ]]; then
-        report OK "waywallen: wallpaper path=$wall"
+        report OK "wallpaper: path=$wall"
     else
-        report FAIL "waywallen: nenhum wallpaper path válido"
+        report FAIL "wallpaper: nenhum path válido — rode caelestia wallpaper -f …"
         return 1
     fi
 
-    if [[ -f "$db" ]] && command -v sqlite3 &>/dev/null; then
-        count="$(sqlite3 "$db" 'SELECT COUNT(*) FROM item;' 2>/dev/null || echo 0)"
-        if [[ "${count:-0}" -gt 0 ]]; then
-            report OK "waywallen: library com $count item(ns)"
+    if [[ -f "$shell_json" ]] && command -v jq &>/dev/null; then
+        if ! jq -e '.background.wallpaperEnabled == true' "$shell_json" &>/dev/null; then
+            report FAIL "wallpaper: shell.json wallpaperEnabled!=true (necessário no NVIDIA)"
+            return 1
+        fi
+        if jq -e '.background.enabled == false' "$shell_json" &>/dev/null; then
+            report FAIL "wallpaper: shell.json background.enabled=false"
+            return 1
+        fi
+        report OK "wallpaper: Caelestia background/wallpaper habilitados"
+    fi
+
+    if command -v hyprctl &>/dev/null && hyprctl monitors &>/dev/null 2>&1; then
+        layers="$(hyprctl layers 2>/dev/null || true)"
+        if grep -q 'namespace: waywallen-wallpaper' <<<"$layers"; then
+            report FAIL "wallpaper: layer waywallen-wallpaper presente (preto no NVIDIA) — pare o daemon"
+            return 1
+        fi
+        if grep -q 'namespace: caelestia-background' <<<"$layers"; then
+            report OK "wallpaper: layer caelestia-background ativo"
         else
-            report WARN "waywallen: library vazia — rode scripts/waywallen-bridge.sh"
+            report FAIL "wallpaper: caelestia-background ausente — reinicie: caelestia shell -d"
+            return 1
         fi
     fi
+
     return 0
 }
 

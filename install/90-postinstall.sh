@@ -49,8 +49,11 @@ fi
 
 postinstall_wallpaper() {
     if [[ -f "$DEFAULT_WALL" ]]; then
-        caelestia wallpaper -f "$DEFAULT_WALL" -N 2>/dev/null || \
-        bash "$PANDORA_ROOT/scripts/wallpaper-posthook.sh" "$DEFAULT_WALL"
+        # Garante Caelestia como renderer (Waywallen daemon no NVIDIA fica preto)
+        systemctl --user disable --now waywallen.service 2>/dev/null || true
+        caelestia wallpaper -f "$DEFAULT_WALL" -N 2>/dev/null \
+            || caelestia wallpaper -f "$DEFAULT_WALL" 2>/dev/null \
+            || bash "$PANDORA_ROOT/scripts/wallpaper-posthook.sh" "$DEFAULT_WALL"
         bash "$PANDORA_ROOT/scripts/waywallen-bridge.sh" "$DEFAULT_WALL" || true
     else
         warn "Wallpaper padrão não encontrado: $DEFAULT_WALL"
@@ -85,7 +88,7 @@ else
 fi
 
 run_step "Iniciar serviços user" bash -c '
-    systemctl --user start waywallen.service 2>/dev/null || true
+    systemctl --user disable --now waywallen.service 2>/dev/null || true
     if ! command -v qs >/dev/null || ! pandora_shell_qsconf >/dev/null 2>&1; then
         warn "caelestia shell não instalado (rode install/30-caelestia-build.sh)"
     elif caelestia shell -d >/dev/null 2>&1; then
