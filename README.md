@@ -97,7 +97,7 @@ O script faz merge do upstream `caelestia-dots` nos forks, rebuild cli/shell, `c
 | `overlays/cli.json` | URL dos dots, theming, bridge Waywallen |
 | `overlays/shell.json` | Desabilita wallpaper interno do shell |
 | `overlays/hypr-vars.lua` | Cursor como editor (`SUPER+C`) |
-| `overlays/hypr-user.lua` | Teclado br-abnt2, monitor 2560×1600@240Hz scale 1.25, dashboard workspace 1, autostart Waywallen |
+| `overlays/hypr-user.lua` | Teclado br-abnt2, monitor 2560×1600@240Hz em `0x0` scale 1.25, dashboard workspace 1, autostart Waywallen |
 | `scripts/workspace-dashboard.sh` | Layout automático: fastfetch (logo Berserk), btop, cava, cmatrix, tty-clock |
 | `overlays/fastfetch/config.jsonc` | Logo Berserk vermelho + infos do sistema |
 | `overlays/cava/config` | Visualizador de áudio em tons vermelhos |

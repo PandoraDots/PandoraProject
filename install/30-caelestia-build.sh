@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+PANDORA_ROOT="${PANDORA_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+export PANDORA_ROOT
+PANDORA_MODEL="${PANDORA_MODEL:-phn16-72}"
+export PANDORA_MODEL
+
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 resolve_local_repo() {
@@ -47,15 +53,82 @@ build_cli() {
 }
 
 build_shell() {
+    require_cmd qs
     if pandora_shell_ready; then
-        log "caelestia shell (qs) já instalado: $(command -v qs)"
+        log "caelestia shell já instalado: $(pandora_shell_qsconf)"
         return 0
     fi
 
+    local git_rev version
+    git_rev="$(git -C "$SHELL_DIR" rev-parse HEAD)"
+    version="$(git -C "$SHELL_DIR" describe --tags --abbrev=0 2>/dev/null || true)"
+    if [[ -z "$version" ]]; then
+        version="0.0.1"
+        warn "Repo shell sem tags — usando VERSION=$version GIT_REVISION=$git_rev"
+    else
+        version="${version#v}"
+    fi
+
+    log "Compilando caelestia-shell em $SHELL_DIR (qs sozinho não basta)"
     cd "$SHELL_DIR"
-    cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/
+    cmake -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/ \
+        -DVERSION="$version" \
+        -DGIT_REVISION="$git_rev" \
+        -DDISTRIBUTOR=PandoraProject
     cmake --build build
-    sudo cmake --install build
+
+    if sudo -n cmake --install build; then
+        log "caelestia-shell instalado em /etc/xdg/quickshell/caelestia (system)"
+        rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/shell-qml.env"
+    else
+        warn "sudo sem senha indisponível — instalando shell em ~/.config/quickshell/caelestia"
+        install_shell_userlocal "$SHELL_DIR"
+    fi
+
+    pandora_shell_ready || die "shell.qml não encontrado após install"
+}
+
+install_shell_userlocal() {
+    local shell_dir="${1:?}"
+    local build="$shell_dir/build"
+    local qsconf="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/caelestia"
+    local qmldir="${HOME}/.local/lib/qt6/qml"
+    local libdir="${HOME}/.local/lib/caelestia"
+    local envfile="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/shell-qml.env"
+    local dir
+
+    mkdir -p "$qsconf" "$qmldir" "$libdir" "$(dirname "$envfile")"
+
+    for dir in assets components modules services utils; do
+        rm -rf "$qsconf/$dir"
+        cp -a "$shell_dir/$dir" "$qsconf/$dir"
+    done
+    if [[ -f "$build/qml/shell.qml" ]]; then
+        cp -a "$build/qml/shell.qml" "$qsconf/shell.qml"
+    else
+        cp -a "$shell_dir/shell.qml" "$qsconf/shell.qml"
+    fi
+    chmod +x "$qsconf/assets/wrap_term_launch.sh" 2>/dev/null || true
+
+    if [[ -d "$build/qml/Caelestia" ]]; then
+        rm -rf "$qmldir/Caelestia"
+        cp -a "$build/qml/Caelestia" "$qmldir/Caelestia"
+    fi
+    if [[ -d "$build/qml/M3Shapes" ]]; then
+        rm -rf "$qmldir/M3Shapes"
+        cp -a "$build/qml/M3Shapes" "$qmldir/M3Shapes"
+    fi
+    find "$build/plugin" -name 'libcaelestia-*.so' -exec cp -a {} "$libdir/" \; 2>/dev/null || true
+    find "$build" -name 'libm3shapes*.so*' -exec cp -a {} "$libdir/" \; 2>/dev/null || true
+
+    cat >"$envfile" <<EOF
+export QML2_IMPORT_PATH="$qmldir"
+export QML_IMPORT_PATH="$qmldir"
+export LD_LIBRARY_PATH="$libdir"
+EOF
+    log "shell user-local: $qsconf (+ plugins em $qmldir)"
 }
 
 if ! skip_if_ready "Build cli ($CLI_DIR)" pandora_cli_ready; then

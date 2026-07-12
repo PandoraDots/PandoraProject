@@ -239,28 +239,167 @@ check_model_apps() {
     done < <(jq -r '.packages.apps[]?' "$MODEL_FILE" 2>/dev/null)
 }
 
+check_hypr_user_monitor() {
+    local path="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/hypr-user.lua"
+    if [[ ! -f "$path" ]]; then
+        if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 ]]; then
+            report WARN "hypr monitor (pendente pós-resume): $path ausente"
+        else
+            report FAIL "hypr monitor: $path ausente"
+        fi
+        return 1
+    fi
+
+    local pos
+    pos="$(grep -E '^\s*position\s*=' "$path" | head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/' || true)"
+    if [[ -z "$pos" ]]; then
+        report WARN "hypr monitor: nenhum position= em $path"
+        return 0
+    fi
+
+    # Hyprland exige auto* ou COORDSxCOORDS (ex.: 0x0) — "0,0" quebra a sessão/shell
+    if [[ "$pos" =~ ^auto(-center)?(-(up|down|left|right))?$ || "$pos" =~ ^-?[0-9]+x-?[0-9]+$ ]]; then
+        report OK "hypr monitor: position='$pos' válido"
+        return 0
+    fi
+    report FAIL "hypr monitor: position='$pos' inválido em $path (use '0x0' ou 'auto', não '0,0')"
+    return 1
+}
+
+check_hypr_config_errors() {
+    local errors
+    if ! errors="$(hyprctl configerrors 2>/dev/null)"; then
+        report WARN "runtime: hyprctl configerrors indisponível"
+        return 1
+    fi
+    errors="$(printf '%s' "$errors" | sed '/^[[:space:]]*$/d')"
+    if [[ -z "$errors" ]]; then
+        report OK "runtime: hyprctl configerrors limpo"
+        return 0
+    fi
+    report FAIL "runtime: erros na config Hyprland (shell/taskbar podem falhar)"
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        report FAIL "runtime: configerror: $line"
+    done <<<"$errors"
+    return 1
+}
+
+check_caelestia_shell_config() {
+    local conf
+    if conf="$(pandora_shell_qsconf 2>/dev/null)"; then
+        report OK "arquivo: shell caelestia ($conf)"
+        return 0
+    fi
+    if [[ "${INSTALL_INCOMPLETE:-0}" -eq 1 ]]; then
+        report WARN "arquivo (pendente pós-resume): /etc/xdg/quickshell/caelestia/shell.qml"
+    else
+        report FAIL "arquivo: shell caelestia ausente (/etc/xdg/quickshell/caelestia/shell.qml) — rode install/30-caelestia-build.sh"
+    fi
+    return 1
+}
+
+check_caelestia_shell() {
+    # Evitar falso positivo em pgrep: padrão não pode aparecer na linha de comando deste script
+    if pgrep -u "$USER" -f '(^|/)qs -c caelestia|(^|/)quickshell .*-c caelestia' &>/dev/null; then
+        report OK "runtime: caelestia shell (qs -c caelestia) em execução"
+        return 0
+    fi
+
+    if command -v qs &>/dev/null && qs -c caelestia ipc show &>/dev/null 2>&1; then
+        report OK "runtime: caelestia shell responde via IPC"
+        return 0
+    fi
+
+    report FAIL "runtime: caelestia shell/taskbar não está rodando"
+    return 1
+}
+
+check_spicetify_theme() {
+    local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/config-xpui.ini"
+    if [[ ! -f "$cfg" ]]; then
+        report WARN "spicetify: config-xpui.ini ausente"
+        return 1
+    fi
+    if ! grep -qE '^current_theme[[:space:]=]+caelestia' "$cfg"; then
+        report FAIL "spicetify: current_theme não é caelestia"
+        return 1
+    fi
+    if ! grep -qE '^version[[:space:]=]+.+' "$cfg"; then
+        report FAIL "spicetify: Backup vazio — rode spicetify backup apply"
+        return 1
+    fi
+    report OK "spicetify: tema caelestia aplicado (backup ok)"
+    return 0
+}
+
+check_waywallen_wallpaper() {
+    local last wall path_state db count
+    last="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/waywallen-last.txt"
+    path_state="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/wallpaper/path.txt"
+    db="${XDG_DATA_HOME:-$HOME/.local/share}/waywallen/waywallen-v2.db"
+
+    if ! command -v fusermount &>/dev/null && ! command -v fusermount3 &>/dev/null; then
+        report FAIL "waywallen: fusermount ausente (instale fuse2)"
+        return 1
+    fi
+    report OK "waywallen: fusermount disponível"
+
+    if systemctl --user is-active waywallen.service &>/dev/null; then
+        report OK "waywallen: serviço ativo"
+    else
+        report WARN "waywallen: serviço inativo (normal fora da sessão gráfica)"
+    fi
+
+    wall=""
+    [[ -f "$last" ]] && wall="$(cat "$last")"
+    [[ -z "$wall" && -f "$path_state" ]] && wall="$(cat "$path_state")"
+    if [[ -n "$wall" && -f "$wall" ]]; then
+        report OK "waywallen: wallpaper path=$wall"
+    else
+        report FAIL "waywallen: nenhum wallpaper path válido"
+        return 1
+    fi
+
+    if [[ -f "$db" ]] && command -v sqlite3 &>/dev/null; then
+        count="$(sqlite3 "$db" 'SELECT COUNT(*) FROM item;' 2>/dev/null || echo 0)"
+        if [[ "${count:-0}" -gt 0 ]]; then
+            report OK "waywallen: library com $count item(ns)"
+        else
+            report WARN "waywallen: library vazia — rode scripts/waywallen-bridge.sh"
+        fi
+    fi
+    return 0
+}
+
 check_runtime() {
     if ! python -c "import materialyoucolor, PIL" &>/dev/null 2>&1; then
         report FAIL "python: materialyoucolor/pillow ausentes (rode install/30-caelestia-build.sh)"
         return 1
     fi
     report OK "python: materialyoucolor + pillow"
+
+    check_hypr_user_monitor || true
+    check_caelestia_shell_config || true
+    check_spicetify_theme || true
+    check_waywallen_wallpaper || true
+
     if command -v hyprctl &>/dev/null && hyprctl monitors &>/dev/null 2>&1; then
         report OK "runtime: sessão Hyprland ativa"
+        check_hypr_config_errors || true
+        if pandora_shell_qsconf &>/dev/null; then
+            check_caelestia_shell || true
+        else
+            report FAIL "runtime: shell/taskbar não pode iniciar sem /etc/xdg/quickshell/caelestia/shell.qml"
+        fi
         if hyprctl clients -j 2>/dev/null | jq -e '.[] | select(.class | startswith("pandora-"))' &>/dev/null; then
             report OK "runtime: janelas pandora-* detectadas"
         else
-            report INFO "runtime: dashboard pandora-* não detectado (normal pós-install em TTY)"
+            report WARN "runtime: dashboard pandora-* não detectado com sessão Hyprland ativa"
         fi
     else
-        report INFO "runtime: Hyprland inativo — dashboard só verificável após login"
+        report INFO "runtime: Hyprland inativo — configerrors/shell/dashboard só verificáveis após login"
     fi
-
-    local line
-    while IFS= read -r line; do
-        [[ -z "$line" ]] && continue
-        report INFO "runtime: $line"
-    done < <(jq -r '.runtime_info[]?' "$MANIFEST" 2>/dev/null)
 }
 
 # --- Cabeçalho do relatório ---

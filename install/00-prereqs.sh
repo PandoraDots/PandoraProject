@@ -18,6 +18,7 @@ prereqs_install_packages() {
         fish eza zoxide direnv starship \
         noto-fonts noto-fonts-cjk noto-fonts-emoji \
         curl trash-cli lazygit bat ripgrep ydotool hyprpicker xdg-user-dirs \
+        gvfs gvfs-mtp tumbler thunar-volman fuse2 \
         hyprland xdg-desktop-portal-hyprland xdg-desktop-portal-gtk \
         ttf-jetbrains-mono-nerd foot fastfetch btop micro thunar \
         adw-gtk-theme papirus-icon-theme papirus-folders \

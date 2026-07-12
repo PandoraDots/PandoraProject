@@ -7,7 +7,7 @@ if ! command -v hyprctl >/dev/null 2>&1; then
 fi
 
 if ! hyprctl clients -j 2>/dev/null | jq -e '.[] | select(.class == "zapzap")' >/dev/null; then
-    hyprctl dispatch exec "[workspace special:whatsapp] zapzap"
+    hyprctl dispatch 'hl.dsp.exec_cmd("zapzap")' >/dev/null
 fi
 
-hyprctl dispatch togglespecialworkspace whatsapp
+hyprctl dispatch 'hl.dsp.workspace.toggle_special("whatsapp")' >/dev/null
