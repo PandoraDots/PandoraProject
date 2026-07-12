@@ -63,11 +63,9 @@ for _, tile in ipairs(dash) do
 end
 
 hl.on("hyprland.start", function()
-    hl.exec_cmd("systemctl --user start pandora-gpu-profile.path")
+    -- Uma execução; timer systemd cobre mudanças de perfil (sem path→reload loop)
     hl.exec_cmd("__PANDORA_ROOT__/scripts/gpu-profile.sh")
-    -- Aplica wallpaper via Caelestia (Waywallen daemon no NVIDIA fica preto)
-    hl.exec_cmd("sleep 1 && __PANDORA_ROOT__/scripts/waywallen-bridge.sh")
-    hl.exec_cmd("sleep 2 && __PANDORA_ROOT__/scripts/workspace-dashboard.sh")
+    hl.exec_cmd("sleep 1 && __PANDORA_ROOT__/scripts/workspace-dashboard.sh")
 end)
 
 -- Super+A → ZapZap (special:whatsapp)

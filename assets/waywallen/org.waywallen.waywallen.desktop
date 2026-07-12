@@ -2,8 +2,8 @@
 Type=Application
 Name=Waywallen
 GenericName=Wallpaper Manager for Linux
-Comment=Wallpaper Manager for Linux
-Exec=waywallen
+Comment=Seletor de wallpaper (renderizado pelo Caelestia no Hyprland)
+Exec=waywallen-ui
 Icon=org.waywallen.waywallen
 Terminal=false
 Categories=Graphics;Qt;

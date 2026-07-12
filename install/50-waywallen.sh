@@ -71,4 +71,4 @@ seed_waywallen_library() {
 
 seed_waywallen_library
 
-log "Waywallen app em $WAYWALLEN_BIN (launcher OK; daemon off)"
+log "Waywallen app em $WAYWALLEN_BIN (launcher=waywallen-ui --no-display; daemon off)"

@@ -182,9 +182,13 @@ check_cachyos_drivers() {
 }
 
 check_sddm() {
-    local theme keyboard
+    local theme keyboard dest_bg src_wall session_desktop session_desktop_share
     theme="$(jq -r '.sddm.theme // empty' "$MANIFEST")"
     keyboard="$(jq -r '.sddm.keyboard // empty' "$MANIFEST")"
+    dest_bg="/usr/share/sddm/themes/caelestia/assets/background"
+    src_wall="${PANDORA_ROOT}/Wallpapers/whitekat.jpg"
+    session_desktop="/usr/local/share/wayland-sessions/hyprland-uwsm.desktop"
+    session_desktop_share="/usr/share/wayland-sessions/hyprland-uwsm.desktop"
 
     if [[ -n "$theme" && -d "/usr/share/sddm/themes/$theme" ]]; then
         report OK "sddm: tema $theme instalado"
@@ -196,6 +200,64 @@ check_sddm() {
         report OK "sddm: pandora.conf com tema $theme"
     else
         report WARN "sddm: /etc/sddm.conf.d/pandora.conf ausente ou tema diferente"
+    fi
+
+    if [[ -f /etc/sddm.conf.d/pandora.conf ]] && grep -qE '^DisplayServer=x11-user$' /etc/sddm.conf.d/pandora.conf; then
+        report OK "sddm: DisplayServer=x11-user"
+    else
+        report FAIL "sddm: DisplayServer deveria ser x11-user (evita falha weston)"
+    fi
+
+    if [[ -f "$session_desktop" ]] && grep -qE 'uwsm start -g -1' "$session_desktop"; then
+        report OK "sddm: /usr/local/.../hyprland-uwsm.desktop com -g -1"
+    else
+        report FAIL "sddm: falta /usr/local/.../hyprland-uwsm.desktop com -g -1 (greeter não lê ~/.local)"
+    fi
+
+    if [[ -f "$session_desktop_share" ]] && ! grep -qE 'uwsm start -g -1' "$session_desktop_share"; then
+        if [[ -f "$session_desktop" ]] && grep -qE 'uwsm start -g -1' "$session_desktop"; then
+            report OK "sddm: /usr/share sem -g -1 (ok — /usr/local tem prioridade)"
+        else
+            report FAIL "sddm: só /usr/share/hyprland-uwsm.desktop sem -g -1 — SDDM usará Exec lento"
+        fi
+    fi
+
+    if [[ -x /usr/local/lib/pandora/wayland-session ]]; then
+        report OK "sddm: SessionCommand wrapper /usr/local/lib/pandora/wayland-session"
+    else
+        report FAIL "sddm: wrapper /usr/local/lib/pandora/wayland-session ausente"
+    fi
+
+    if [[ -f /etc/sddm.conf.d/pandora.conf ]] \
+        && grep -qE '^SessionCommand=/usr/local/lib/pandora/wayland-session$' /etc/sddm.conf.d/pandora.conf; then
+        report OK "sddm: pandora.conf SessionCommand=pandora wrapper"
+    else
+        report FAIL "sddm: pandora.conf sem SessionCommand pandora (ainda usa fish --login)"
+    fi
+
+    if [[ -f /etc/sddm.conf.d/pandora.conf ]] \
+        && grep -qE '^DefaultSession=hyprland-uwsm.desktop$' /etc/sddm.conf.d/pandora.conf; then
+        report OK "sddm: DefaultSession=hyprland-uwsm.desktop"
+    else
+        report WARN "sddm: DefaultSession não é hyprland-uwsm.desktop"
+    fi
+
+    if [[ -f "$src_wall" && -f "$dest_bg" ]] && command -v md5sum &>/dev/null; then
+        if [[ "$(md5sum "$src_wall" | awk '{print $1}')" == "$(md5sum "$dest_bg" | awk '{print $1}')" ]]; then
+            report OK "sddm: login wallpaper = whitekat"
+        else
+            report FAIL "sddm: background != whitekat — rode sync_sddm_theme"
+        fi
+    elif [[ ! -f "$src_wall" ]]; then
+        report WARN "sddm: whitekat.jpg ausente em Wallpapers/"
+    else
+        report FAIL "sddm: assets/background ausente"
+    fi
+
+    if systemctl --user is-enabled pandora-gpu-profile.path &>/dev/null; then
+        report FAIL "gpu: pandora-gpu-profile.path habilitado (loop) — disable --now"
+    else
+        report OK "gpu: pandora-gpu-profile.path desabilitado"
     fi
 
     if [[ -n "$keyboard" ]]; then
@@ -352,6 +414,14 @@ check_waywallen_wallpaper() {
         report OK "waywallen: launcher desktop=$desktop"
     else
         report FAIL "waywallen: .desktop ausente no launcher — rode install/50-waywallen.sh"
+        return 1
+    fi
+
+    if [[ -L "${HOME}/.local/bin/waywallen-ui" || -x "${HOME}/.local/bin/waywallen-ui" ]] \
+        && grep -qE 'waywallen-ui' "$desktop"; then
+        report OK "waywallen: launcher usa wrapper --no-display (waywallen-ui)"
+    else
+        report FAIL "waywallen: .desktop não aponta para waywallen-ui — rode install_waywallen_launcher"
         return 1
     fi
 

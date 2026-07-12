@@ -63,6 +63,8 @@ if [[ -f "$LAST_WALL" ]]; then
 fi
 
 configure_keyboard_layout 2>/dev/null || true
+deploy_pandora_sddm_conf 2>/dev/null || true
+install_hyprland_uwsm_session 2>/dev/null || true
 sync_sddm_theme 2>/dev/null || true
 bash "$PANDORA_ROOT/scripts/workspace-dashboard.sh" 2>/dev/null || true
 
