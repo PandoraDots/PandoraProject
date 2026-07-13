@@ -4,21 +4,20 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 run_step "Teclado padrão (br-abnt2)" configure_keyboard_layout
 
-session_install_sddm() {
-    pacman_install sddm qt6-5compat
-    install_caelestia_sddm_fork
+session_install_greetd() {
+    pacman_install greetd greetd-tuigreet
+    # Pacote SDDM/tema opcional (lock futuro); não é o greeter de boot
+    pacman_install sddm qt6-5compat 2>/dev/null || true
+    install_caelestia_sddm_fork 2>/dev/null || warn "Fork caelestia-sddm não instalado (ok — greeter é tuigreet)"
 
-    deploy_pandora_sddm_conf
-
-    sudo systemctl disable greetd.service 2>/dev/null || true
-    sudo systemctl enable sddm.service
+    enable_greetd_disable_sddm
 }
 
-run_step "Display manager (SDDM + tema Caelestia fork)" session_install_sddm
+run_step "Display manager (greetd + tuigreet → start-hyprland)" session_install_greetd
 
-deploy_sddm_sudoers
+deploy_sddm_sudoers 2>/dev/null || true
 
-run_step "Sessão Hyprland (start-hyprland, sem UWSM)" install_hyprland_session
+run_step "Sessão Hyprland (start-hyprland desktop)" install_hyprland_session
 
 session_install_uwsm() {
     if pkg_in_repos uwsm; then
@@ -51,6 +50,6 @@ EOF
     fi
 }
 
-run_step "Sessão Wayland (uwsm + Hyprland)" session_install_uwsm
+run_step "Sessão Wayland (uwsm configs + Hyprland)" session_install_uwsm
 
-log "Sessão configurada (SDDM + Caelestia locklike + uwsm + Hyprland)."
+log "Sessão configurada (greetd autologin → start-hyprland → lock Caelestia)."

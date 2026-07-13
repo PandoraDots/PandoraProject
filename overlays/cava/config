@@ -1,20 +1,31 @@
+# Fallback vermelho (usado se o schema Caelestia ainda não aplicou).
+# Com enableCava, o CLI sobrescreve este arquivo com cores do scheme.json.
+
 [general]
 framerate = 60
 autosens = 1
-bars = 12
-bar_width = 2
+bars = 32
+bar_width = 1
 bar_spacing = 1
 
 [input]
 method = pulse
 source = auto
 
+[output]
+method = ncurses
+style = stereo
+
 [color]
+background = '#000000'
+gradient = 1
 gradient_count = 3
-gradient_1 = '#3d0000'
-gradient_2 = '#8b0000'
-gradient_3 = '#ff1a1a'
+gradient_color_1 = '#3d0000'
+gradient_color_2 = '#8b0000'
+gradient_color_3 = '#ff1a1a'
 
 [smoothing]
+noise_reduction = 85
 monstercat = 1
 waves = 0
+gravity = 120

@@ -18,7 +18,8 @@
             "pipewire",
             "pipewire-pulse",
             "wireplumber",
-            "sddm",
+            "greetd",
+            "greetd-tuigreet",
             "uwsm",
             "quickshell-git",
             "qt6-shadertools",
@@ -43,6 +44,7 @@
             "thunar-volman"
         ],
         "optional": [
+            "sddm",
             "pipewire-jack",
             "caelestia-sddm-locklike-git",
             "spotify",
@@ -149,12 +151,15 @@
     ],
     "systemd_system": {
         "required": [
-            "sddm.service",
+            "greetd.service",
             "power-profiles-daemon.service"
         ],
         "optional": [
             "nvidia-powerd.service",
             "nekro_sense.service"
+        ],
+        "disabled": [
+            "sddm.service"
         ]
     },
     "systemd_user": {
@@ -163,9 +168,16 @@
         ],
         "optional": []
     },
+    "greetd": {
+        "command": "start-hyprland",
+        "keyboard": "br-abnt2",
+        "autologin": true,
+        "note": "initial_session → Hyprland; tuigreet só após logout; lock Caelestia no start"
+    },
     "sddm": {
-        "theme": "caelestia",
-        "keyboard": "br-abnt2"
+        "theme": "maldives",
+        "keyboard": "br-abnt2",
+        "note": "opcional — greeter de boot é greetd autologin"
     },
     "scheme": {
         "name": "inferno"
