@@ -11,14 +11,16 @@ chmod +x install.sh install/*.sh scripts/*.sh
 ./install.sh
 ```
 
-Reinicie o sistema após a instalação (SDDM substitui greetd). Na primeira tela de login, escolha a sessão **Hyprland (uwsm-managed)**.
+O instalador pergunta **usuário** e **senha** no início (cria o user se precisar). Reinicie após a instalação.
+
+**Login:** greetd **autologin** → `start-hyprland` → lock do Caelestia na hora (tela bonita). Sem digitar no greeter no boot. Após logout, cai no **tuigreet** (login manual).
 
 Se os forks `cli`, `caelestia` e `shell` existirem como pastas irmãs do PandoraProject (ex.: `~/dotfile/cli`), o instalador usa essas cópias locais automaticamente em vez de clonar do GitHub.
 
 ## O que o script faz
 
 1. Instala pré-requisitos (Hyprland, paru, dependências Caelestia) — em **CachyOS**, prioriza pacotes dos repos otimizados (`cachyos-v3`, `cachyos-extra-v3`, etc.)
-2. Configura SDDM com tema [Caelestia locklike](https://github.com/ItsABigIgloo/caelestia-sddm), teclado **br-abnt2** e sessão uwsm + Hyprland
+2. Configura **greetd** (autologin + tuigreet após logout), teclado **br-abnt2** e sessão Hyprland via `start-hyprland` (SDDM/tema locklike é opcional residual)
 3. Instala drivers NVIDIA/Intel e [nekro-sense](https://github.com/PandoraDots/nekro-sense) para PHN16-72 — no CachyOS usa `linux-cachyos*-nvidia-open` (pré-compilado) em vez de `nvidia-open-dkms`
 4. Compila e instala `caelestia` CLI + shell dos forks PandoraDots (sem AUR)
 5. Executa `caelestia install` com Spotify/Spicetify, Cursor e Equicord (equibop-bin)
@@ -26,6 +28,12 @@ Se os forks `cli`, `caelestia` e `shell` existirem como pastas irmãs do Pandora
 7. Instala Waywallen (AppImage) com bridge para o seletor de wallpaper do Caelestia
 8. Aplica schema **inferno** (vermelho escuro), wallpaper `glassesredjapan.jpg`, ícone de usuário (`assets/icon.png` → `~/.face`), dashboard na **workspace 1** (fastfetch+Berserk, btop, cava, cmatrix, tty-clock), RGB vermelho e perfil performance
 9. Executa **verificação pós-instalação** e salva relatório em texto
+
+Reaplicar só o login no PC atual:
+
+```bash
+~/PandoraProject/scripts/apply-login-fix.sh
+```
 
 ## Verificação pós-instalação
 
@@ -36,7 +44,7 @@ Ao final de `./install.sh`, o passo `99-verify` roda [`scripts/verify-install.sh
 | `~/.local/state/pandora/verify-install-latest.log` | Symlink para o último relatório |
 | `~/.local/state/pandora/verify-install-YYYYMMDD-HHMMSS.log` | Relatório com timestamp |
 
-O relatório lista cada item como `[OK]`, `[WARN]`, `[FAIL]` ou `[INFO]` — pacotes, comandos, configs, systemd, SDDM, scheme inferno e checks de runtime. Ideal para colar em análise por IA.
+O relatório lista cada item como `[OK]`, `[WARN]`, `[FAIL]` ou `[INFO]` — pacotes, comandos, configs, systemd, greetd/autologin, scheme inferno e checks de runtime. Ideal para colar em análise por IA.
 
 Rodar manualmente:
 
@@ -100,7 +108,8 @@ O script faz merge do upstream `caelestia-dots` nos forks, rebuild cli/shell, `c
 | `overlays/hypr-user.lua` | Teclado br-abnt2, monitor 2560×1600@240Hz em `0x0` scale 1.25, dashboard workspace 1, autostart Waywallen |
 | `scripts/workspace-dashboard.sh` | Layout automático: fastfetch (logo Berserk), btop, cava, cmatrix, tty-clock |
 | `overlays/fastfetch/config.jsonc` | Logo Berserk vermelho + infos do sistema |
-| `overlays/cava/config` | Visualizador de áudio em tons vermelhos |
+| `overlays/cava/config` | Fallback vermelho (bars=32); cores vêm do schema via `enableCava` |
+| `overlays/templates/cava.conf` | Template cava com placeholders do schema Caelestia |
 | `scripts/gpu-profile.sh` | Intel em economia, NVIDIA nos demais perfis |
 
 ## Forks PandoraDots

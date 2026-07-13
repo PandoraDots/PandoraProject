@@ -181,87 +181,84 @@ check_cachyos_drivers() {
     done
 }
 
-check_sddm() {
-    local theme keyboard dest_bg src_wall session_desktop session_uwsm
-    theme="$(jq -r '.sddm.theme // empty' "$MANIFEST")"
-    keyboard="$(jq -r '.sddm.keyboard // empty' "$MANIFEST")"
-    dest_bg="/usr/share/sddm/themes/caelestia/assets/background"
-    src_wall="${PANDORA_ROOT}/Wallpapers/whitekat.jpg"
+check_display_manager() {
+    local keyboard cmd session_desktop session_uwsm greetd_conf login_user
+    keyboard="$(jq -r '.greetd.keyboard // .sddm.keyboard // empty' "$MANIFEST")"
+    cmd="$(jq -r '.greetd.command // "start-hyprland"' "$MANIFEST")"
     session_desktop="/usr/local/share/wayland-sessions/hyprland.desktop"
     session_uwsm="/usr/local/share/wayland-sessions/hyprland-uwsm.desktop"
+    greetd_conf="/etc/greetd/config.toml"
+    login_user="${PANDORA_LOGIN_USER:-${USER:-}}"
 
-    if [[ -n "$theme" && -d "/usr/share/sddm/themes/$theme" ]]; then
-        report OK "sddm: tema $theme instalado"
+    if [[ -f "$greetd_conf" ]] && grep -qE '^\[initial_session\]' "$greetd_conf" \
+        && grep -qE "$cmd" "$greetd_conf"; then
+        report OK "greetd: $greetd_conf (autologin → $cmd)"
     else
-        report FAIL "sddm: tema ${theme:-caelestia} ausente"
+        report FAIL "greetd: falta [initial_session]/$cmd em $greetd_conf"
     fi
 
-    if pacman -Qi caelestia-sddm-locklike-git &>/dev/null; then
-        local pkg_url
-        pkg_url="$(pacman -Qi caelestia-sddm-locklike-git 2>/dev/null | awk -F': ' '/^URL/{print $2; exit}')"
-        if [[ "$pkg_url" == *PandoraDots/caelestia-sddm* ]]; then
-            report OK "sddm: pacote locklike URL PandoraDots"
-        else
-            report FAIL "sddm: pacote locklike URL=$pkg_url (esperado PandoraDots)"
-        fi
+    if [[ -f "$greetd_conf" ]] && grep -qE "tuigreet" "$greetd_conf"; then
+        report OK "greetd: tuigreet como default_session (após logout)"
     else
-        report FAIL "sddm: caelestia-sddm-locklike-git não instalado"
+        report WARN "greetd: tuigreet ausente em default_session"
     fi
 
-    if [[ -f /etc/sddm.conf.d/pandora.conf ]] && grep -q "Current=$theme" /etc/sddm.conf.d/pandora.conf 2>/dev/null; then
-        report OK "sddm: pandora.conf com tema $theme"
-    else
-        report WARN "sddm: /etc/sddm.conf.d/pandora.conf ausente ou tema diferente"
+    if [[ -n "$login_user" ]] && [[ -f "$greetd_conf" ]] \
+        && grep -qE "^user = \"$login_user\"$" "$greetd_conf"; then
+        report OK "greetd: initial_session user=$login_user"
+    elif [[ -f "$greetd_conf" ]] && grep -qE '^\[initial_session\]' "$greetd_conf"; then
+        report WARN "greetd: initial_session presente, mas user≠$login_user"
     fi
 
-    if [[ -f /etc/sddm.conf.d/pandora.conf ]] && grep -qE '^DisplayServer=x11-user$' /etc/sddm.conf.d/pandora.conf; then
-        report OK "sddm: DisplayServer=x11-user"
+    if command -v tuigreet &>/dev/null; then
+        report OK "greetd: tuigreet instalado"
     else
-        report FAIL "sddm: DisplayServer deveria ser x11-user (evita falha weston)"
+        report FAIL "greetd: tuigreet ausente"
+    fi
+
+    if systemctl is-enabled greetd.service &>/dev/null; then
+        report OK "greetd: greetd.service habilitado"
+    else
+        report FAIL "greetd: greetd.service não habilitado"
+    fi
+
+    if systemctl is-enabled sddm.service &>/dev/null; then
+        report FAIL "greetd: sddm.service ainda habilitado — disable --now sddm"
+    else
+        report OK "greetd: sddm.service desabilitado"
+    fi
+
+    if [[ -f /etc/pam.d/greetd ]] \
+        && grep -q 'pam_gnome_keyring.so' /etc/pam.d/greetd \
+        && grep -q 'auto_start' /etc/pam.d/greetd; then
+        report OK "greetd: PAM gnome-keyring auto_start"
+    else
+        report FAIL "greetd: /etc/pam.d/greetd sem pam_gnome_keyring auto_start"
     fi
 
     if [[ -f "$session_desktop" ]] && grep -qE '^Exec=/usr/bin/start-hyprland$' "$session_desktop"; then
-        report OK "sddm: /usr/local/.../hyprland.desktop = start-hyprland"
+        report OK "sessão: /usr/local/.../hyprland.desktop = start-hyprland"
     else
-        report FAIL "sddm: falta /usr/local/.../hyprland.desktop com Exec=start-hyprland"
+        report FAIL "sessão: falta /usr/local/.../hyprland.desktop com Exec=start-hyprland"
     fi
 
     if [[ -f "$session_uwsm" ]] && grep -qE '^Hidden=true$' "$session_uwsm"; then
-        report OK "sddm: hyprland-uwsm.desktop Hidden=true"
+        report OK "sessão: hyprland-uwsm.desktop Hidden=true"
     else
-        report WARN "sddm: hyprland-uwsm.desktop não oculto em /usr/local"
+        report WARN "sessão: hyprland-uwsm.desktop não oculto em /usr/local"
     fi
 
-    if [[ -x /usr/local/lib/pandora/wayland-session ]]; then
-        report OK "sddm: SessionCommand wrapper /usr/local/lib/pandora/wayland-session"
+    local hypr_user="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/hypr-user.lua"
+    if [[ -f "$hypr_user" ]] && grep -qF 'caelestia shell lock lock' "$hypr_user"; then
+        report OK "lock: hypr-user.lua trava Caelestia no hyprland.start"
     else
-        report FAIL "sddm: wrapper /usr/local/lib/pandora/wayland-session ausente"
+        report WARN "lock: hypr-user.lua sem lock no start — rode deploy_overlays"
     fi
 
-    if [[ -f /etc/sddm.conf.d/pandora.conf ]] \
-        && grep -qE '^SessionCommand=/usr/local/lib/pandora/wayland-session$' /etc/sddm.conf.d/pandora.conf; then
-        report OK "sddm: pandora.conf SessionCommand=pandora wrapper"
+    if pacman -Qi caelestia-sddm-locklike-git &>/dev/null; then
+        report OK "sddm: tema locklike presente (opcional; não é greeter de boot)"
     else
-        report FAIL "sddm: pandora.conf sem SessionCommand pandora (ainda usa fish --login)"
-    fi
-
-    if [[ -f /etc/sddm.conf.d/pandora.conf ]] \
-        && grep -qE '^DefaultSession=hyprland.desktop$' /etc/sddm.conf.d/pandora.conf; then
-        report OK "sddm: DefaultSession=hyprland.desktop"
-    else
-        report FAIL "sddm: DefaultSession deveria ser hyprland.desktop"
-    fi
-
-    if [[ -f "$src_wall" && -f "$dest_bg" ]] && command -v md5sum &>/dev/null; then
-        if [[ "$(md5sum "$src_wall" | awk '{print $1}')" == "$(md5sum "$dest_bg" | awk '{print $1}')" ]]; then
-            report OK "sddm: login wallpaper = whitekat"
-        else
-            report FAIL "sddm: background != whitekat — rode sync_sddm_theme"
-        fi
-    elif [[ ! -f "$src_wall" ]]; then
-        report WARN "sddm: whitekat.jpg ausente em Wallpapers/"
-    else
-        report FAIL "sddm: assets/background ausente"
+        report WARN "sddm: caelestia-sddm-locklike-git ausente (opcional)"
     fi
 
     if systemctl --user is-enabled pandora-gpu-profile.path &>/dev/null; then
@@ -281,6 +278,9 @@ check_sddm() {
     fi
 }
 
+# Compat: nome antigo
+check_sddm() { check_display_manager; }
+
 check_scheme() {
     local expected scheme_file
     expected="$(jq -r '.scheme.name // "inferno"' "$MANIFEST")"
@@ -291,16 +291,33 @@ check_scheme() {
         else
             report FAIL "scheme: $scheme_file ausente"
         fi
-        return 1
-    fi
-    if jq -e --arg n "$expected" '.name == $n' "$scheme_file" &>/dev/null; then
+    elif jq -e --arg n "$expected" '.name == $n' "$scheme_file" &>/dev/null; then
         report OK "scheme: $expected em $scheme_file"
-        return 0
+    else
+        local actual
+        actual="$(jq -r '.name // "?"' "$scheme_file" 2>/dev/null)"
+        report FAIL "scheme: esperado $expected, encontrado $actual"
     fi
-    local actual
-    actual="$(jq -r '.name // "?"' "$scheme_file" 2>/dev/null)"
-    report FAIL "scheme: esperado $expected, encontrado $actual"
-    return 1
+
+    local cava_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/cava/config"
+    local cava_tpl="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/templates/cava.conf"
+    if [[ -f "$cava_cfg" ]] && grep -qE '^bars\s*=\s*32' "$cava_cfg"; then
+        report OK "cava: bars=32"
+    else
+        report WARN "cava: bars≠32 em $cava_cfg"
+    fi
+    if [[ -f "$cava_cfg" ]] && grep -qE "gradient_color_[0-9]+ = '#[0-9A-Fa-f]{6}'" "$cava_cfg"; then
+        report OK "cava: gradient do schema (hex)"
+    elif [[ -f "$cava_cfg" ]] && grep -qE "gradient_color_1 = '#3d0000'" "$cava_cfg"; then
+        report WARN "cava: ainda no fallback vermelho — rode sync_cava_from_scheme"
+    else
+        report WARN "cava: cores não reconhecidas em $cava_cfg"
+    fi
+    if [[ -f "$cava_tpl" ]] && grep -qF '{{ $primary' "$cava_tpl"; then
+        report OK "cava: template Caelestia em $cava_tpl"
+    else
+        report WARN "cava: falta templates/cava.conf (schema sync)"
+    fi
 }
 
 check_model_apps() {
@@ -610,8 +627,17 @@ while IFS= read -r unit; do
     check_systemd_unit "$unit" user optional || true
 done < <(jq -r '.systemd_user.optional[]?' "$MANIFEST")
 
-# --- SDDM, scheme, runtime ---
-check_sddm || true
+# --- Display manager (greetd), scheme, runtime ---
+while IFS= read -r unit; do
+    [[ -z "$unit" ]] && continue
+    if systemctl is-enabled "$unit" &>/dev/null; then
+        report FAIL "systemd (system): $unit deveria estar desabilitado"
+    else
+        report OK "systemd (system): $unit desabilitado"
+    fi
+done < <(jq -r '.systemd_system.disabled[]?' "$MANIFEST")
+
+check_display_manager || true
 check_scheme || true
 check_runtime || true
 

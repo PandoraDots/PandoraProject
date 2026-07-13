@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Aplica fixes de login SDDM/UWSM que exigem root (uma vez).
+# Aplica greetd autologin → Hyprland → lock Caelestia (tuigreet só após logout).
 # Uso: bash scripts/apply-login-fix.sh
+# Não-interativo: PANDORA_LOGIN_USER=... PANDORA_LOGIN_PASS=... bash scripts/apply-login-fix.sh
 set -euo pipefail
 
 PANDORA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -8,30 +9,27 @@ export PANDORA_ROOT
 source "$PANDORA_ROOT/install/lib.sh"
 
 chmod +x "$PANDORA_ROOT/scripts/sddm-set-login-wall.sh" \
-    "$PANDORA_ROOT/scripts/pandora-wayland-session.sh"
+    "$PANDORA_ROOT/scripts/pandora-wayland-session.sh" 2>/dev/null || true
 
-log "SDDM DisplayServer=x11-user + SessionCommand pandora..."
-deploy_pandora_sddm_conf
+run_step "Usuário e senha de login (greetd autologin)" ensure_pandora_login_user
 
-log "Sudoers SDDM + whitekat..."
-deploy_sddm_sudoers
+log "Pacotes greetd + tuigreet..."
+pacman_install greetd greetd-tuigreet
 
-log "Sessão start-hyprland (sem UWSM) + wrapper wayland-session..."
+log "Sessão start-hyprland em /usr/local..."
 install_hyprland_session
 
-log "Tema SDDM do fork PandoraDots..."
-install_caelestia_sddm_fork
-
-log "Sync tema + whitekat..."
-sync_sddm_theme
+log "greetd autologin + PAM keyring + enable; disable sddm..."
+enable_greetd_disable_sddm
 
 log "Systemd GPU (timer, sem path loop)..."
 deploy_systemd_units
 
-log "Overlays..."
+log "Overlays (inclui lock Caelestia no hyprland.start)..."
 deploy_overlays
 
 bash "$PANDORA_ROOT/scripts/gpu-profile.sh" || true
 
-log "Pronto. Reboot e valide: 1 login, Session started true, sem greeter restart."
+log "Pronto. Reboot → autologin ($PANDORA_LOGIN_USER) → Hyprland → lock Caelestia."
+log "Após logout: tuigreet (login manual)."
 log "Verifique: bash $PANDORA_ROOT/scripts/verify-install.sh"

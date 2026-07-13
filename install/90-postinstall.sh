@@ -47,6 +47,8 @@ run_step "Thunar ASK + volman" deploy_thunar_overlays
 if ! skip_if_ready "Schema inferno" scheme_inferno_ready; then
     run_step "Schema inferno" caelestia scheme set -n inferno -f default -m dark
 fi
+# Garante cava com cores do schema mesmo se scheme já estava pronto (skip)
+run_step "Cava ← schema Caelestia (bars=32)" sync_cava_from_scheme || true
 
 postinstall_wallpaper() {
     if [[ -f "$DEFAULT_WALL" ]]; then
@@ -66,9 +68,9 @@ if ! skip_if_ready "Wallpaper padrão" wallpaper_ready; then
 fi
 
 if [[ -x /usr/share/sddm/themes/caelestia/scripts/sync.sh ]]; then
-    run_step "Tema SDDM Caelestia" sync_sddm_theme
+    run_step "Tema SDDM Caelestia (opcional)" sync_sddm_theme || warn "sync SDDM falhou (ok — greeter é tuigreet)"
 else
-    warn "Tema SDDM Caelestia não instalado — pulando sync"
+    warn "Tema SDDM Caelestia não instalado — pulando sync (ok — greeter é tuigreet)"
 fi
 
 run_step "nekro-sense defaults" bash -c "

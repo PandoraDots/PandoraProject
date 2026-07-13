@@ -229,16 +229,22 @@ deploy_overlays() {
             log "Overlay: $f -> $dest/$f"
         fi
     done
+    if [[ -f "$src/cava/config" ]]; then
+        mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/cava"
+        cp "$src/cava/config" "${XDG_CONFIG_HOME:-$HOME/.config}/cava/config"
+        log "Overlay: cava/config (fallback vermelho, bars=32)"
+    fi
+    if [[ -f "$src/templates/cava.conf" ]]; then
+        mkdir -p "$PANDORA_CONFIG/templates"
+        cp "$src/templates/cava.conf" "$PANDORA_CONFIG/templates/cava.conf"
+        log "Overlay: templates/cava.conf (schema Caelestia → cava)"
+    fi
+    sync_cava_from_scheme || true
     if [[ -f "$src/fastfetch/config.jsonc" ]]; then
         mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch"
         sed "s|__PANDORA_ROOT__|$PANDORA_ROOT|g" "$src/fastfetch/config.jsonc" \
             >"${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/config.jsonc"
         log "Overlay: fastfetch/config.jsonc"
-    fi
-    if [[ -f "$src/cava/config" ]]; then
-        mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/cava"
-        cp "$src/cava/config" "${XDG_CONFIG_HOME:-$HOME/.config}/cava/config"
-        log "Overlay: cava/config"
     fi
     if [[ -f "$src/fish/functions/fish_greeting.fish" ]]; then
         mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/fish/functions"
@@ -250,6 +256,48 @@ deploy_overlays() {
     deploy_systemd_units
     deploy_user_icon
     deploy_wallpaper_qml
+}
+
+# Aplica cores do scheme.json no cava (enableCava). Fallback: overlay vermelho já copiado.
+sync_cava_from_scheme() {
+    local scheme_file="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/scheme.json"
+    local cava_cfg="${XDG_CONFIG_HOME:-$HOME/.config}/cava/config"
+
+    if [[ ! -f "$scheme_file" ]]; then
+        warn "sync_cava: scheme.json ausente — mantendo fallback vermelho (bars=32)"
+        return 1
+    fi
+
+    if ! python -c "
+from caelestia.utils.scheme import get_scheme
+from caelestia.utils.theme import apply_cava
+apply_cava(get_scheme().colours)
+" 2>/dev/null; then
+        # Fallback: reaplicar scheme completo (também atualiza cava se enableCava)
+        if command -v caelestia >/dev/null 2>&1; then
+            local name flavour mode
+            name="$(jq -r '.name // empty' "$scheme_file")"
+            flavour="$(jq -r '.flavour // "default"' "$scheme_file")"
+            mode="$(jq -r '.mode // "dark"' "$scheme_file")"
+            [[ -n "$name" ]] || return 1
+            caelestia scheme set -n "$name" -f "$flavour" -m "$mode" >/dev/null 2>&1 || {
+                warn "sync_cava: falha ao aplicar cores do schema"
+                return 1
+            }
+        else
+            warn "sync_cava: caelestia/python ausente — mantendo fallback vermelho (bars=32)"
+            return 1
+        fi
+    fi
+
+    if [[ -f "$cava_cfg" ]] && grep -qE '^bars\s*=\s*32' "$cava_cfg"; then
+        log "cava: cores do schema Caelestia + bars=32"
+        return 0
+    fi
+    if [[ -f "$cava_cfg" ]]; then
+        warn "sync_cava: config escrita, mas bars≠32 — confira template"
+    fi
+    return 0
 }
 
 deploy_wallpaper_qml() {
@@ -459,7 +507,7 @@ install_hyprland_session() {
     fi
     sudo chmod 644 "$system_dir/hyprland.desktop" 2>/dev/null || true
 
-    # UWSM oculto no seletor (não usar no login SDDM)
+    # UWSM oculto no seletor (não usar no login greetd)
     if [[ -f "$uwsm_src" ]]; then
         sudo cp -f "$uwsm_src" "$system_dir/hyprland-uwsm.desktop"
         cp -f "$uwsm_src" "$user_dir/hyprland-uwsm.desktop"
@@ -512,18 +560,52 @@ install_caelestia_sddm_fork() {
         [[ -n "$pkg" ]] || die "Pacote locklike não gerado em $build_dir"
         sudo pacman -U --noconfirm "$pkg"
     )
+    # git+file:// empacota o commit; reaplicar working tree (fixes ainda não commitados)
+    if [[ -d "$fork_root/themes/locklike" ]]; then
+        sudo cp -a "$fork_root/themes/locklike/." /usr/share/sddm/themes/caelestia/
+        [[ -f "$fork_root/scripts/sync.sh" ]] \
+            && sudo install -Dm755 "$fork_root/scripts/sync.sh" \
+                /usr/share/sddm/themes/caelestia/scripts/sync.sh
+        log "Overlay locklike do working tree aplicado em /usr/share/sddm/themes/caelestia"
+    fi
+    # Pacote grava caelestia.conf — reforça drop-in sem xcb e pandora.conf por cima
+    sanitize_caelestia_sddm_conf
+    deploy_pandora_sddm_conf
     log "Tema SDDM Caelestia (fork PandoraDots) instalado"
+}
+
+# Neutraliza drop-in do pacote: sem xcb e sem Current= (greeter = maldives via 99-pandora).
+sanitize_caelestia_sddm_conf() {
+    local dest="/etc/sddm.conf.d/caelestia.conf"
+    sudo mkdir -p /etc/sddm.conf.d
+    sudo tee "$dest" >/dev/null <<'EOF'
+[General]
+GreeterEnvironment=QML_XHR_ALLOW_FILE_READ=1
+EOF
+    sudo chmod 644 "$dest"
+    # Remover confs de teste que competem com 99-pandora
+    sudo rm -f /etc/sddm.conf.d/99-vanilla-test.conf \
+        /etc/sddm.conf.d/pandora.conf 2>/dev/null || true
+    if grep -q 'QT_QPA_PLATFORM=xcb' "$dest" 2>/dev/null; then
+        die "sanitize_caelestia_sddm_conf: ainda há QT_QPA_PLATFORM=xcb em $dest"
+    fi
+    if grep -qE '^Current=' "$dest" 2>/dev/null; then
+        die "sanitize_caelestia_sddm_conf: caelestia.conf não deve forçar Current="
+    fi
+    log "SDDM: caelestia.conf sem xcb e sem Current= (greeter maldives)"
 }
 
 deploy_pandora_sddm_conf() {
     local src="$PANDORA_ROOT/overlays/sddm/pandora.conf"
+    local dest="/etc/sddm.conf.d/99-pandora.conf"
     sudo mkdir -p /etc/sddm.conf.d
+    sanitize_caelestia_sddm_conf
     if [[ -f "$src" ]]; then
-        sudo cp -f "$src" /etc/sddm.conf.d/pandora.conf
+        sudo cp -f "$src" "$dest"
     else
-        sudo tee /etc/sddm.conf.d/pandora.conf >/dev/null <<'EOF'
+        sudo tee "$dest" >/dev/null <<'EOF'
 [Theme]
-Current=caelestia
+Current=maldives
 
 [General]
 Numlock=on
@@ -534,8 +616,155 @@ DefaultSession=hyprland.desktop
 SessionCommand=/usr/local/lib/pandora/wayland-session
 EOF
     fi
-    sudo chmod 644 /etc/sddm.conf.d/pandora.conf
-    log "SDDM: DisplayServer=x11-user DefaultSession=hyprland.desktop"
+    sudo chmod 644 "$dest"
+    # Garantir que nenhum Current=caelestia reste ativo
+    if grep -rhE '^Current=caelestia$' /etc/sddm.conf.d/ 2>/dev/null | grep -q .; then
+        warn "Ainda há Current=caelestia em conf.d — removendo de drop-ins do pacote"
+        sanitize_caelestia_sddm_conf
+    fi
+    log "SDDM: greeter=maldives DisplayServer=x11-user DefaultSession=hyprland.desktop ($dest)"
+}
+
+deploy_greetd_pam() {
+    local src="$PANDORA_ROOT/overlays/greetd/pam.d-greetd"
+    local dest="/etc/pam.d/greetd"
+    if [[ -f "$src" ]]; then
+        sudo cp -f "$src" "$dest"
+    else
+        sudo tee "$dest" >/dev/null <<'EOF'
+#%PAM-1.0
+auth       required     pam_securetty.so
+auth       requisite    pam_nologin.so
+auth       include      system-local-login
+auth       optional     pam_gnome_keyring.so
+account    include      system-local-login
+password   include      system-local-login
+-password  optional     pam_gnome_keyring.so use_authtok
+session    include      system-local-login
+session    optional     pam_gnome_keyring.so auto_start
+EOF
+    fi
+    sudo chmod 644 "$dest"
+    if ! grep -q 'pam_gnome_keyring.so' "$dest"; then
+        die "deploy_greetd_pam: falta pam_gnome_keyring em $dest"
+    fi
+    log "greetd PAM: gnome-keyring auto_start ($dest)"
+}
+
+prompt_pandora_login() {
+    local user_default pass1 pass2
+    user_default="${PANDORA_LOGIN_USER:-${USER:-}}"
+    [[ -n "$user_default" ]] || die "prompt_pandora_login: USER vazio"
+
+    if [[ "${PANDORA_SKIP_PASS:-0}" == "1" ]]; then
+        PANDORA_LOGIN_USER="${PANDORA_LOGIN_USER:-$user_default}"
+        log "Login: usuário=$PANDORA_LOGIN_USER (senha não alterada — PANDORA_SKIP_PASS=1)"
+    elif [[ -t 0 ]]; then
+        read -r -p "Usuário de login [$user_default]: " PANDORA_LOGIN_USER
+        PANDORA_LOGIN_USER="${PANDORA_LOGIN_USER:-$user_default}"
+        while true; do
+            read -r -s -p "Senha para $PANDORA_LOGIN_USER: " pass1
+            printf '\n'
+            read -r -s -p "Confirme a senha: " pass2
+            printf '\n'
+            if [[ -z "$pass1" ]]; then
+                warn "Senha vazia — tente de novo"
+                continue
+            fi
+            if [[ "$pass1" != "$pass2" ]]; then
+                warn "Senhas não coincidem — tente de novo"
+                continue
+            fi
+            break
+        done
+        PANDORA_LOGIN_PASS="$pass1"
+    else
+        PANDORA_LOGIN_USER="${PANDORA_LOGIN_USER:-$user_default}"
+        if [[ -z "${PANDORA_LOGIN_PASS:-}" ]]; then
+            die "prompt_pandora_login: stdin não é TTY — defina PANDORA_LOGIN_USER e PANDORA_LOGIN_PASS (ou PANDORA_SKIP_PASS=1)"
+        fi
+        log "Login não-interativo: usuário=$PANDORA_LOGIN_USER"
+    fi
+
+    if [[ ! "$PANDORA_LOGIN_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+        die "Usuário inválido: $PANDORA_LOGIN_USER (use minúsculas, números, _ ou -)"
+    fi
+    export PANDORA_LOGIN_USER
+}
+
+ensure_pandora_login_user() {
+    local user groups
+    prompt_pandora_login
+    user="$PANDORA_LOGIN_USER"
+    groups="wheel,video,audio,input,storage"
+
+    if id "$user" &>/dev/null; then
+        if [[ "${PANDORA_SKIP_PASS:-0}" == "1" ]]; then
+            log "Usuário $user já existe — mantendo senha atual"
+        else
+            log "Usuário $user já existe — atualizando senha"
+        fi
+    else
+        [[ "${PANDORA_SKIP_PASS:-0}" != "1" ]] || die "Usuário $user não existe e PANDORA_SKIP_PASS=1"
+        log "Criando usuário $user..."
+        sudo useradd -m -G "$groups" -s /bin/bash "$user" \
+            || die "Falha ao criar usuário $user"
+    fi
+
+    if [[ "${PANDORA_SKIP_PASS:-0}" != "1" ]]; then
+        # Não pipear direto em `sudo chpasswd` — o sudo pode consumir o stdin da senha.
+        sudo bash -c 'printf "%s:%s\n" "$1" "$2" | chpasswd' _ "$user" "$PANDORA_LOGIN_PASS" \
+            || die "Falha ao definir senha de $user"
+        unset PANDORA_LOGIN_PASS
+    fi
+
+    if [[ "$user" != "${USER:-}" ]]; then
+        warn "Usuário de login ($user) ≠ usuário atual (${USER:-}). Overlays vão para \$HOME de ${USER:-}."
+        warn "Rode o restante da install como $user (su - $user) se HOME/config precisar bater."
+    fi
+
+    export PANDORA_LOGIN_USER
+    log "Login: usuário=$user (greetd initial_session)"
+}
+
+deploy_greetd_conf() {
+    local src="$PANDORA_ROOT/overlays/greetd/config.toml"
+    local dest="/etc/greetd/config.toml"
+    local login_user="${PANDORA_LOGIN_USER:-${USER:-}}"
+    [[ -n "$login_user" ]] || die "deploy_greetd_conf: PANDORA_LOGIN_USER/USER vazio"
+
+    sudo mkdir -p /etc/greetd
+    if [[ -f "$src" ]]; then
+        sed "s|__PANDORA_USER__|$login_user|g" "$src" | sudo tee "$dest" >/dev/null
+    else
+        sudo tee "$dest" >/dev/null <<EOF
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --time --remember --remember-session --sessions /usr/local/share/wayland-sessions:/usr/share/wayland-sessions --cmd /usr/bin/start-hyprland"
+user = "greeter"
+
+[initial_session]
+command = "/usr/bin/start-hyprland"
+user = "$login_user"
+EOF
+    fi
+    sudo chmod 644 "$dest"
+    if ! grep -qE '^\[initial_session\]' "$dest" \
+        || ! grep -qE "^user = \"$login_user\"$" "$dest"; then
+        die "deploy_greetd_conf: initial_session/user=$login_user ausente em $dest"
+    fi
+    deploy_greetd_pam
+    log "greetd: autologin $login_user → start-hyprland; tuigreet após logout ($dest)"
+}
+
+enable_greetd_disable_sddm() {
+    deploy_greetd_conf
+    install_hyprland_session
+    sudo systemctl disable --now sddm.service 2>/dev/null || true
+    sudo systemctl enable greetd.service
+    log "DM: greetd enabled, sddm disabled (evita greeter X11/NVIDIA)"
 }
 
 deploy_systemd_units() {
@@ -744,14 +973,18 @@ pandora_export_helpers() {
     export PANDORA_ROOT PANDORA_MODEL PANDORA_AUR_HELPER
     export PANDORA_STATE PANDORA_CONFIG PANDORA_BUILD
     export PANDORA_DOTS_URL PANDORA_CLI_URL PANDORA_SHELL_URL PANDORA_NEKRO_URL
+    export PANDORA_LOGIN_USER
 
     local fn
     local -a fns=(
         log warn die require_cmd run_step model_config
         deploy_overlays deploy_user_icon patch_cli_json configure_keyboard_layout
         deploy_sddm_sudoers sync_sddm_theme deploy_systemd_units link_wallpapers
-        deploy_wallpaper_qml deploy_pandora_sddm_conf
+        deploy_wallpaper_qml deploy_pandora_sddm_conf deploy_greetd_conf deploy_greetd_pam
+        enable_greetd_disable_sddm prompt_pandora_login ensure_pandora_login_user
+        sync_cava_from_scheme
         install_hyprland_session install_hyprland_uwsm_session install_caelestia_sddm_fork
+        sanitize_caelestia_sddm_conf
         ensure_paru pacman_install aur_install aur_install_one clone_or_pull install_audio_stack
         pandora_pkg_alias pkg_in_repos pkg_in_aur pkg_available
         skip_if_ready pandora_cli_ready pandora_shell_ready caelestia_dots_ready

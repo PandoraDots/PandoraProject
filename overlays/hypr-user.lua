@@ -42,13 +42,14 @@ hl.window_rule({
 -- Free Download Manager
 hl.window_rule({ match = { class = "fdm" }, float = true, center = true })
 
--- Workspace 1 — dashboard inferno (grid 2x2 + relógio/cmatrix)
+-- Workspace 1 — dashboard inferno (grid 2x2 + cmatrix/clock)
+-- size inicial importa p/ o cava (bars=32); move final é do script (center global).
 local dash = {
-    { class = "pandora-info",   w = 0.50, h = 0.50, x = 0.00, y = 0.00 },
-    { class = "pandora-btop",   w = 0.50, h = 0.50, x = 0.50, y = 0.00 },
-    { class = "pandora-cava",   w = 0.50, h = 0.50, x = 0.00, y = 0.50 },
-    { class = "pandora-cmatrix", w = 0.25, h = 0.50, x = 0.50, y = 0.50 },
-    { class = "pandora-clock",  w = 0.25, h = 0.50, x = 0.75, y = 0.50 },
+    { class = "pandora-info",    size = "(monitor_w*0.5-18) (monitor_h*0.5-18)" },
+    { class = "pandora-btop",    size = "(monitor_w*0.5-18) (monitor_h*0.5-18)" },
+    { class = "pandora-cava",    size = "(monitor_w*0.5-18) (monitor_h*0.5-18)" },
+    { class = "pandora-cmatrix", size = "(monitor_w*0.25-15) (monitor_h*0.5-18)" },
+    { class = "pandora-clock",   size = "(monitor_w*0.25-15) (monitor_h*0.5-18)" },
 }
 
 for _, tile in ipairs(dash) do
@@ -57,8 +58,7 @@ for _, tile in ipairs(dash) do
         workspace = "1",
         float     = true,
         center    = false,
-        size      = ("(monitor_w*%.2f - 24) (monitor_h*%.2f - 24)"):format(tile.w, tile.h),
-        move      = ("(monitor_w*%.2f + 12) (monitor_h*%.2f + 12)"):format(tile.x, tile.y),
+        size      = tile.size,
     })
 end
 
@@ -66,6 +66,8 @@ hl.on("hyprland.start", function()
     -- Uma execução; timer systemd cobre mudanças de perfil (sem path→reload loop)
     hl.exec_cmd("__PANDORA_ROOT__/scripts/gpu-profile.sh")
     hl.exec_cmd("sleep 1 && __PANDORA_ROOT__/scripts/workspace-dashboard.sh")
+    -- Autologin: trava com lock Caelestia assim que o shell IPC estiver pronto
+    hl.exec_cmd("bash -c 'for i in $(seq 1 40); do caelestia shell lock isLocked >/dev/null 2>&1 && break; sleep 0.25; done; caelestia shell lock lock'")
 end)
 
 -- Super+A → ZapZap (special:whatsapp)

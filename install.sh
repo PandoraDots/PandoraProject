@@ -35,6 +35,8 @@ pandora_helpers_reachable || die "Helpers do lib.sh não alcançam subshells (ba
 log "PandoraProject install — modelo: $PANDORA_MODEL"
 log "Raiz: $PANDORA_ROOT"
 
+run_step "Usuário e senha de login (greetd autologin)" ensure_pandora_login_user
+
 chmod +x "$PANDORA_ROOT"/scripts/*.sh 2>/dev/null || true
 chmod +x "$PANDORA_ROOT"/install/*.sh 2>/dev/null || true
 
@@ -55,5 +57,5 @@ for step in "${steps[@]}"; do
     bash "$step"
 done
 
-log "Instalação concluída. Reinicie a sessão para aplicar tudo."
+log "Instalação concluída. Reinicie: autologin → Hyprland → lock Caelestia."
 log "Atualizações futuras: $PANDORA_ROOT/scripts/update.sh"
