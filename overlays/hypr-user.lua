@@ -1,4 +1,4 @@
--- PandoraProject overlay — PHN16-72 display, Waywallen autostart, GPU env, apps.
+-- PandoraProject overlay — PHN16-72 display, GPU env, apps.
 
 hl.config({
     input = {

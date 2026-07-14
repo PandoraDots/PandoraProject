@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Aplica polish UX que exige root (pacotes + spicetify) e corrige wallpaper.
+# Aplica polish UX que exige root (pacotes + spicetify) e corrige wallpaper Caelestia.
 # Uso: bash scripts/apply-sudo-polish.sh
 set -euo pipefail
 
@@ -23,17 +23,14 @@ if command -v spicetify &>/dev/null; then
     spicetify backup apply || spicetify apply || warn "spicetify apply ainda falhou"
 fi
 
-log "Instalando launcher Waywallen (.desktop + ícone)..."
-install_waywallen_launcher || warn "launcher Waywallen falhou"
+log "Instalando Hydra Launcher (.desktop + ícone)..."
+install_hydra_launcher || warn "launcher Hydra falhou"
 
-# Waywallen daemon/layer-shell no NVIDIA fica preto — desligar
-systemctl --user unmask waywallen.service 2>/dev/null || true
-systemctl --user disable --now waywallen.service 2>/dev/null || true
-pkill -u "$USER" -f 'waywallen-layer-shell' 2>/dev/null || true
-pkill -u "$USER" -f 'waywallen-image-renderer' 2>/dev/null || true
-pkill -u "$USER" -f 'waywallen.*--no-ui' 2>/dev/null || true
+log "Atualizando Orion Launcher (release latest)..."
+install_orion_binary || warn "Orion AppImage falhou"
+install_orion_launcher || warn "launcher Orion falhou"
 
-log "Aplicando overlay (Caelestia wallpaper habilitado)..."
+log "Aplicando overlays..."
 deploy_overlays
 deploy_pandora_sddm_conf 2>/dev/null || true
 install_hyprland_session 2>/dev/null || true
@@ -41,10 +38,10 @@ deploy_systemd_units 2>/dev/null || true
 sync_sddm_theme 2>/dev/null || true
 
 log "Aplicando wallpaper via Caelestia..."
-if [[ -f "$DEFAULT_WALL" ]]; then
-    bash "$PANDORA_ROOT/scripts/waywallen-bridge.sh" "$DEFAULT_WALL" || true
-else
-    bash "$PANDORA_ROOT/scripts/waywallen-bridge.sh" || true
+if [[ -f "$DEFAULT_WALL" ]] && command -v caelestia &>/dev/null; then
+    caelestia wallpaper -f "$DEFAULT_WALL" -N 2>/dev/null \
+        || caelestia wallpaper -f "$DEFAULT_WALL" 2>/dev/null \
+        || warn "falha ao aplicar wallpaper"
 fi
 
 if command -v caelestia &>/dev/null && pandora_shell_qsconf &>/dev/null; then
@@ -56,5 +53,5 @@ if command -v caelestia &>/dev/null && pandora_shell_qsconf &>/dev/null; then
     fi
 fi
 
-log "Pronto. Wallpaper via Caelestia; Waywallen no launcher com --no-display (waywallen-ui)."
+log "Pronto. Wallpaper via Caelestia; Hydra no launcher de apps."
 log "Verifique: bash $PANDORA_ROOT/scripts/verify-install.sh"

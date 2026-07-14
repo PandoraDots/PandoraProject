@@ -92,17 +92,62 @@ scheme_inferno_ready() {
     [[ -f "$scheme_file" ]] && jq -e '.name == "inferno"' "$scheme_file" &>/dev/null
 }
 
-waywallen_desktop_path() {
-    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/applications/org.waywallen.waywallen.desktop"
+# Localiza AppImage/binário do Hydra (Shelly, Pandora ou PATH).
+find_hydra_binary() {
+    local bin dir f
+    dir="${HOME}/.local/bin"
+    for f in \
+        "$dir/hydralauncher" \
+        "$dir"/hydralauncher*.AppImage \
+        "$dir"/Hydra*.AppImage; do
+        [[ -x "$f" ]] || continue
+        # Preferir AppImage do Shelly (nome versionado) sobre cópia sem extensão
+        if [[ "$f" == *.AppImage ]]; then
+            printf '%s' "$f"
+            return 0
+        fi
+        bin="$f"
+    done
+    [[ -n "${bin:-}" ]] && { printf '%s' "$bin"; return 0; }
+    if command -v hydralauncher &>/dev/null; then
+        command -v hydralauncher
+        return 0
+    fi
+    return 1
 }
 
-waywallen_icon_path() {
-    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/org.waywallen.waywallen.svg"
+# .desktop já criado pelo Shelly / AppImageKit / Pandora.
+find_hydra_desktop() {
+    local apps d
+    apps="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    for d in \
+        "$apps"/hydralauncher*.desktop \
+        "$apps"/io.hydralauncher.Hydra.desktop \
+        "$apps"/*[Hh]ydra*.desktop; do
+        [[ -f "$d" ]] || continue
+        printf '%s' "$d"
+        return 0
+    done
+    return 1
 }
 
-waywallen_ready() {
-    [[ -x "${HOME}/.local/bin/waywallen" ]] || return 1
-    [[ -f "$(waywallen_desktop_path)" ]] || return 1
+hydra_desktop_path() {
+    # Preferir entrada existente (Shelly); senão o template Pandora.
+    local found
+    if found="$(find_hydra_desktop 2>/dev/null)"; then
+        printf '%s' "$found"
+        return 0
+    fi
+    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/applications/io.hydralauncher.Hydra.desktop"
+}
+
+hydra_icon_path() {
+    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/256x256/apps/io.hydralauncher.Hydra.png"
+}
+
+hydra_ready() {
+    find_hydra_binary &>/dev/null || return 1
+    find_hydra_desktop &>/dev/null || return 1
 }
 
 wallpaper_ready() {
@@ -114,64 +159,77 @@ wallpaper_ready() {
     [[ -n "$wall" && -f "$wall" ]] || return 1
     if [[ -f "$shell_json" ]] && command -v jq &>/dev/null; then
         jq -e '.background.wallpaperEnabled == true' "$shell_json" &>/dev/null || return 1
-        # enabled=false ou ausente tratado: precisa estar habilitado (default true)
         jq -e '.background.enabled != false' "$shell_json" &>/dev/null || return 1
-    fi
-    # Daemon Waywallen ativo cobre o Caelestia com layer preto no NVIDIA
-    if systemctl --user is-active waywallen.service &>/dev/null; then
-        return 1
     fi
     return 0
 }
 
-install_waywallen_launcher() {
-    local bin="${HOME}/.local/bin/waywallen"
-    local ui_wrapper="$PANDORA_ROOT/scripts/waywallen-ui.sh"
-    local ui_link="${HOME}/.local/bin/waywallen-ui"
-    local desktop_src="$PANDORA_ROOT/assets/waywallen/org.waywallen.waywallen.desktop"
-    local icon_src="$PANDORA_ROOT/assets/waywallen/org.waywallen.waywallen.svg"
-    local desktop_dst icon_dst apps_dir icons_dir
+hydra_extract_icon() {
+    local bin icon_dst tmp found
+    bin="$(find_hydra_binary 2>/dev/null)" || return 1
+    icon_dst="$(hydra_icon_path)"
+    mkdir -p "$(dirname "$icon_dst")"
+    [[ -x "$bin" ]] || return 1
 
-    [[ -x "$bin" ]] || {
-        warn "Waywallen binário ausente: $bin"
-        return 1
-    }
-    [[ -f "$ui_wrapper" ]] || {
-        warn "Wrapper Waywallen ausente: $ui_wrapper"
-        return 1
-    }
-    chmod +x "$ui_wrapper" "$PANDORA_ROOT/scripts/waywallen-bridge.sh" 2>/dev/null || true
-    ln -sfn "$ui_wrapper" "$ui_link"
-
-    apps_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-    icons_dir="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps"
-    desktop_dst="$(waywallen_desktop_path)"
-    icon_dst="$(waywallen_icon_path)"
-    mkdir -p "$apps_dir" "$icons_dir"
-
-    if [[ -f "$icon_src" ]]; then
-        cp -f "$icon_src" "$icon_dst"
-    else
-        warn "Ícone Waywallen ausente em $icon_src"
+    # Ícone já gerado pelo Shelly
+    found="$(find "${HOME}/.local/share/shelly-icons" -type f \( -iname '*hydra*' -o -iname 'hydralauncher*' \) 2>/dev/null | head -1 || true)"
+    if [[ -n "$found" && -f "$found" ]]; then
+        cp -f "$found" "$icon_dst"
+        log "Hydra ícone (Shelly): $icon_dst"
+        return 0
     fi
 
+    tmp="$(mktemp -d)"
+    if (cd "$tmp" && "$bin" --appimage-extract 'hydralauncher.png' >/dev/null 2>&1) \
+        || (cd "$tmp" && "$bin" --appimage-extract '*.png' >/dev/null 2>&1); then
+        found="$(find "$tmp/squashfs-root" -type f \( -iname 'hydralauncher.png' -o -iname '*hydra*.png' \) 2>/dev/null | head -1)"
+        [[ -z "$found" ]] && found="$(find "$tmp/squashfs-root" -type f -name '*.png' 2>/dev/null | head -1)"
+        if [[ -n "$found" && -f "$found" ]]; then
+            cp -f "$found" "$icon_dst"
+            rm -rf "$tmp"
+            log "Hydra ícone: $icon_dst"
+            return 0
+        fi
+    fi
+    rm -rf "$tmp"
+    return 1
+}
+
+# Garante .desktop no XDG (Caelestia lê applications/). Se Shelly já criou, só confirma.
+install_hydra_launcher() {
+    local bin desktop_src desktop_dst apps_dir existing
+
+    if existing="$(find_hydra_desktop 2>/dev/null)"; then
+        log "Hydra já no launcher (Shelly/XDG): $existing"
+        return 0
+    fi
+
+    bin="$(find_hydra_binary 2>/dev/null)" || {
+        warn "Hydra binário ausente — instale via Shelly ou rode com rede para baixar"
+        return 1
+    }
+
+    apps_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    desktop_dst="${apps_dir}/io.hydralauncher.Hydra.desktop"
+    desktop_src="$PANDORA_ROOT/assets/hydra/io.hydralauncher.Hydra.desktop"
+    mkdir -p "$apps_dir"
+
+    hydra_extract_icon || warn "Ícone Hydra não extraído (OK — .desktop ainda funciona)"
+
     if [[ -f "$desktop_src" ]]; then
-        # --no-display via wrapper: evita layer preto no NVIDIA
-        sed -e "s|^Exec=.*|Exec=${ui_link}|" \
-            -e "s|^Icon=.*|Icon=org.waywallen.waywallen|" \
+        sed -e "s|^Exec=.*|Exec=${bin}|" \
+            -e "s|^Icon=.*|Icon=io.hydralauncher.Hydra|" \
             "$desktop_src" >"$desktop_dst"
     else
         cat >"$desktop_dst" <<EOF
 [Desktop Entry]
 Type=Application
-Name=Waywallen
-GenericName=Wallpaper Manager for Linux
-Comment=Seletor de wallpaper (renderizado pelo Caelestia no Hyprland)
-Exec=${ui_link}
-Icon=org.waywallen.waywallen
+Name=Hydra Launcher
+Comment=Gerenciador de biblioteca de jogos
+Exec=${bin}
+Icon=io.hydralauncher.Hydra
 Terminal=false
-Categories=Graphics;Qt;
-Keywords=wallpaper;pipewire;vulkan;
+Categories=Game;
 StartupNotify=true
 EOF
     fi
@@ -180,10 +238,188 @@ EOF
     if command -v update-desktop-database &>/dev/null; then
         update-desktop-database "$apps_dir" 2>/dev/null || true
     fi
-    if command -v gtk-update-icon-cache &>/dev/null; then
-        gtk-update-icon-cache -f "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" 2>/dev/null || true
+    log "Hydra launcher: $desktop_dst"
+}
+
+# --- Orion Launcher (OrionBE / Minecraft Bedrock) ---
+
+orion_state_tag_file() {
+    printf '%s' "${PANDORA_STATE}/orion-release.tag"
+}
+
+orion_bin_link() {
+    printf '%s' "${HOME}/.local/bin/orion-launcher"
+}
+
+orion_desktop_path() {
+    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/applications/org.orionbedrock.OrionLauncher.desktop"
+}
+
+orion_icon_path() {
+    printf '%s' "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/256x256/apps/org.orionbedrock.OrionLauncher.png"
+}
+
+find_orion_binary() {
+    local dir f link
+    link="$(orion_bin_link)"
+    dir="${HOME}/.local/bin"
+    [[ -x "$link" ]] && { printf '%s' "$(readlink -f "$link" 2>/dev/null || printf '%s' "$link")"; return 0; }
+    for f in "$dir"/OrionBE-Launcher*.AppImage "$dir"/OrionBE*.AppImage "$dir"/orion-launcher*.AppImage; do
+        [[ -x "$f" ]] || continue
+        printf '%s' "$f"
+        return 0
+    done
+    if command -v orion-launcher &>/dev/null; then
+        command -v orion-launcher
+        return 0
     fi
-    log "Waywallen launcher: $desktop_dst"
+    return 1
+}
+
+orion_ready() {
+    find_orion_binary &>/dev/null || return 1
+    [[ -f "$(orion_desktop_path)" ]] || return 1
+}
+
+orion_host_arch_token() {
+    case "$(uname -m)" in
+        x86_64|amd64) printf 'linux-x64' ;;
+        aarch64|arm64) printf 'linux-arm64' ;;
+        *) printf 'linux-x64' ;;
+    esac
+}
+
+# Imprime: TAG<TAB>URL  da release mais recente (AppImage preferindo arch do host).
+orion_latest_release_info() {
+    local repo arch json tag url
+    repo="${ORION_REPO:-OrionBedrock/OrionLauncher}"
+    arch="$(orion_host_arch_token)"
+    require_cmd curl jq
+    json="$(curl -fsSL "https://api.github.com/repos/${repo}/releases/latest")"
+    tag="$(jq -r '.tag_name // empty' <<<"$json")"
+    url="$(jq -r --arg arch "$arch" '
+        [.assets[] | select(.name | test("\\.AppImage$"))
+         | select(.name | test($arch; "i"))]
+        | (.[0].browser_download_url // empty)
+    ' <<<"$json")"
+    if [[ -z "$url" ]]; then
+        url="$(jq -r '[.assets[] | select(.name | test("\\.AppImage$"))] | (.[0].browser_download_url // empty)' <<<"$json")"
+    fi
+    [[ -n "$tag" && -n "$url" && "$url" != "null" ]] || return 1
+    printf '%s\t%s' "$tag" "$url"
+}
+
+ensure_fuse_for_appimage() {
+    if command -v fusermount &>/dev/null || command -v fusermount3 &>/dev/null; then
+        return 0
+    fi
+    warn "fusermount ausente — instalando fuse2 (AppImage)"
+    pacman_install fuse2 || true
+}
+
+install_orion_binary() {
+    local info tag url dest link current_tag stamp name
+    ensure_fuse_for_appimage
+    require_cmd curl jq
+
+    info="$(orion_latest_release_info)" || die "Não foi possível obter release latest do Orion (${ORION_REPO:-OrionBedrock/OrionLauncher})"
+    tag="${info%%$'\t'*}"
+    url="${info#*$'\t'}"
+    stamp="$(orion_state_tag_file)"
+    link="$(orion_bin_link)"
+    mkdir -p "$(dirname "$link")" "$(dirname "$stamp")"
+
+    current_tag=""
+    [[ -f "$stamp" ]] && current_tag="$(<"$stamp")"
+
+    if [[ "${ORION_FORCE_UPDATE:-0}" != "1" && -x "$link" && "$current_tag" == "$tag" ]]; then
+        log "Orion já na release mais recente: $tag ($link)"
+        return 0
+    fi
+
+    name="$(basename "$url")"
+    dest="${HOME}/.local/bin/${name}"
+    log "Baixando Orion $tag: $url"
+    curl -fL --progress-bar "$url" -o "$dest"
+    chmod +x "$dest"
+    ln -sfn "$dest" "$link"
+    printf '%s\n' "$tag" >"$stamp"
+
+    # Remove AppImages Orion antigos (exceto o atual)
+    local old
+    for old in "${HOME}/.local/bin"/OrionBE-Launcher*.AppImage "${HOME}/.local/bin"/OrionBE*.AppImage; do
+        [[ -f "$old" ]] || continue
+        [[ "$(readlink -f "$old" 2>/dev/null || true)" == "$(readlink -f "$dest")" ]] && continue
+        [[ "$old" == "$dest" ]] && continue
+        rm -f "$old" && log "Removido AppImage Orion antigo: $old"
+    done
+
+    log "Orion instalado: $link -> $dest ($tag)"
+}
+
+orion_extract_icon() {
+    local bin icon_dst tmp found
+    bin="$(find_orion_binary 2>/dev/null)" || return 1
+    icon_dst="$(orion_icon_path)"
+    mkdir -p "$(dirname "$icon_dst")"
+    [[ -x "$bin" ]] || return 1
+
+    tmp="$(mktemp -d)"
+    if (cd "$tmp" && "$bin" --appimage-extract '*.png' >/dev/null 2>&1) \
+        || (cd "$tmp" && "$bin" --appimage-extract >/dev/null 2>&1); then
+        found="$(find "$tmp/squashfs-root" -type f \( -iname '*orion*.png' -o -iname '*OrionBE*.png' \) 2>/dev/null | head -1)"
+        [[ -z "$found" ]] && found="$(find "$tmp/squashfs-root" -type f -name '*.png' 2>/dev/null | head -1)"
+        if [[ -n "$found" && -f "$found" ]]; then
+            cp -f "$found" "$icon_dst"
+            rm -rf "$tmp"
+            log "Orion ícone: $icon_dst"
+            return 0
+        fi
+    fi
+    rm -rf "$tmp"
+    return 1
+}
+
+install_orion_launcher() {
+    local bin desktop_src desktop_dst apps_dir exec_path
+
+    bin="$(find_orion_binary 2>/dev/null)" || {
+        warn "Orion binário ausente"
+        return 1
+    }
+    exec_path="$(orion_bin_link)"
+    [[ -x "$exec_path" ]] || exec_path="$bin"
+
+    apps_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    desktop_dst="$(orion_desktop_path)"
+    desktop_src="$PANDORA_ROOT/assets/orion/org.orionbedrock.OrionLauncher.desktop"
+    mkdir -p "$apps_dir"
+
+    orion_extract_icon || warn "Ícone Orion não extraído (OK — .desktop ainda funciona)"
+
+    if [[ -f "$desktop_src" ]]; then
+        sed -e "s|^Exec=.*|Exec=${exec_path}|" \
+            -e "s|^Icon=.*|Icon=org.orionbedrock.OrionLauncher|" \
+            "$desktop_src" >"$desktop_dst"
+    else
+        cat >"$desktop_dst" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Orion Launcher
+Comment=Minecraft Bedrock Launcher (OrionBE)
+Exec=${exec_path}
+Icon=org.orionbedrock.OrionLauncher
+Terminal=false
+Categories=Game;
+StartupNotify=true
+EOF
+    fi
+    chmod 644 "$desktop_dst"
+
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database "$apps_dir" 2>/dev/null || true
+    fi
+    log "Orion launcher: $desktop_dst"
 }
 
 user_unit_enabled() {
@@ -442,7 +678,10 @@ with open(path) as f:
     data = json.load(f)
 data.setdefault("dots", {})["url"] = os.environ.get("PANDORA_DOTS_URL", "https://github.com/PandoraDots/caelestia.git")
 data.setdefault("dots", {})["branch"] = "main"
-data.setdefault("wallpaper", {})["postHook"] = f'bash "{root}/scripts/wallpaper-posthook.sh"'
+# Wallpaper só pelo Caelestia (remove postHook legado se existir)
+data.get("wallpaper", {}).pop("postHook", None)
+if "wallpaper" in data and not data["wallpaper"]:
+    del data["wallpaper"]
 data.setdefault("theme", {})["postHook"] = "sudo /usr/share/sddm/themes/caelestia/scripts/sync.sh --posthook"
 with open(path, "w") as f:
     json.dump(data, f, indent=4)
@@ -988,8 +1227,12 @@ pandora_export_helpers() {
         ensure_paru pacman_install aur_install aur_install_one clone_or_pull install_audio_stack
         pandora_pkg_alias pkg_in_repos pkg_in_aur pkg_available
         skip_if_ready pandora_cli_ready pandora_shell_ready caelestia_dots_ready
-        pandora_overlays_ready scheme_inferno_ready waywallen_ready user_unit_enabled
-        install_waywallen_launcher
+        pandora_overlays_ready scheme_inferno_ready hydra_ready orion_ready user_unit_enabled
+        install_hydra_launcher find_hydra_binary find_hydra_desktop
+        hydra_desktop_path hydra_icon_path hydra_extract_icon
+        install_orion_binary install_orion_launcher find_orion_binary
+        orion_desktop_path orion_icon_path orion_extract_icon orion_latest_release_info
+        ensure_fuse_for_appimage orion_host_arch_token orion_state_tag_file orion_bin_link
         ensure_caelestia_cli_deps
         is_cachyos ensure_cachyos_repos cachyos_pkg_available cachyos_preferred_pkg
         cachyos_should_skip_pkg cachyos_list_kernel_packages

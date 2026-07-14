@@ -56,10 +56,12 @@ bash "$PANDORA_ROOT/scripts/gpu-profile.sh" 2>/dev/null || true
 caelestia scheme set -n inferno -f default -m dark 2>/dev/null || true
 bash "$PANDORA_ROOT/scripts/nekro-setup.sh" "$(model_config "${PANDORA_MODEL:-phn16-72}")" 2>/dev/null || true
 
-LAST_WALL="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/waywallen-last.txt"
-if [[ -f "$LAST_WALL" ]]; then
-    export WALLPAPER_PATH="$(cat "$LAST_WALL")"
-    bash "$PANDORA_ROOT/scripts/wallpaper-posthook.sh" || true
+WALL_STATE="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/wallpaper/path.txt"
+if [[ -f "$WALL_STATE" ]] && command -v caelestia &>/dev/null; then
+    last="$(cat "$WALL_STATE" 2>/dev/null || true)"
+    if [[ -n "$last" && -f "$last" ]]; then
+        caelestia wallpaper -f "$last" -N 2>/dev/null || true
+    fi
 fi
 
 configure_keyboard_layout 2>/dev/null || true

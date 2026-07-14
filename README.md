@@ -24,10 +24,11 @@ Se os forks `cli`, `caelestia` e `shell` existirem como pastas irmãs do Pandora
 3. Instala drivers NVIDIA/Intel e [nekro-sense](https://github.com/PandoraDots/nekro-sense) para PHN16-72 — no CachyOS usa `linux-cachyos*-nvidia-open` (pré-compilado) em vez de `nvidia-open-dkms`
 4. Compila e instala `caelestia` CLI + shell dos forks PandoraDots (sem AUR)
 5. Executa `caelestia install` com Spotify/Spicetify, Cursor e Equicord (equibop-bin)
-6. Instala apps extras: FDM, ZapZap, Planify, VLC e suporte a compactação no Thunar
-7. Instala Waywallen (AppImage) com bridge para o seletor de wallpaper do Caelestia
-8. Aplica schema **inferno** (vermelho escuro), wallpaper `glassesredjapan.jpg`, ícone de usuário (`assets/icon.png` → `~/.face`), dashboard na **workspace 1** (fastfetch+Berserk, btop, cava, cmatrix, tty-clock), RGB vermelho e perfil performance
-9. Executa **verificação pós-instalação** e salva relatório em texto
+6. Instala apps extras: FDM, ZapZap, Planify, VLC, GOverlay, nvtop, CPU-X, **Prism Launcher** (+ deps opcionais: Java, GLFW, OpenAL, gamemode, …) e suporte a compactação no Thunar
+7. Garante Hydra Launcher no menu Caelestia (reutiliza AppImage do Shelly se já existir; senão baixa)
+8. Instala [Orion Launcher](https://github.com/OrionBedrock/OrionLauncher) (AppImage da **release mais recente**) + `.desktop` e runtime .NET 8
+9. Aplica schema **inferno** (vermelho escuro), wallpaper Caelestia `glassesredjapan.jpg`, ícone de usuário (`assets/icon.png` → `~/.face`), dashboard na **workspace 1** (fastfetch+Berserk, btop, cava, cmatrix, tty-clock), RGB vermelho e perfil performance
+10. Executa **verificação pós-instalação** e salva relatório em texto
 
 Reaplicar só o login no PC atual:
 
@@ -102,14 +103,16 @@ O script faz merge do upstream `caelestia-dots` nos forks, rebuild cli/shell, `c
 
 | Arquivo | Função |
 |---------|--------|
-| `overlays/cli.json` | URL dos dots, theming, bridge Waywallen |
-| `overlays/shell.json` | Desabilita wallpaper interno do shell |
+| `overlays/cli.json` | URL dos dots, theming (wallpaper só Caelestia) |
+| `overlays/shell.json` | Wallpaper Caelestia habilitado (`wallpaperDir`) |
 | `overlays/hypr-vars.lua` | Cursor como editor (`SUPER+C`) |
-| `overlays/hypr-user.lua` | Teclado br-abnt2, monitor 2560×1600@240Hz em `0x0` scale 1.25, dashboard workspace 1, autostart Waywallen |
+| `overlays/hypr-user.lua` | Teclado br-abnt2, monitor 2560×1600@240Hz em `0x0` scale 1.25, dashboard workspace 1 |
 | `scripts/workspace-dashboard.sh` | Layout automático: fastfetch (logo Berserk), btop, cava, cmatrix, tty-clock |
 | `overlays/fastfetch/config.jsonc` | Logo Berserk vermelho + infos do sistema |
 | `overlays/cava/config` | Fallback vermelho (bars=32); cores vêm do schema via `enableCava` |
 | `overlays/templates/cava.conf` | Template cava com placeholders do schema Caelestia |
+| `install/50-hydra.sh` | Hydra: reutiliza Shelly/AppImage existente; baixa só se faltar |
+| `install/50-orion.sh` | [Orion Launcher](https://github.com/OrionBedrock/OrionLauncher) — sempre a release latest + .NET 8 |
 | `scripts/gpu-profile.sh` | Intel em economia, NVIDIA nos demais perfis |
 
 ## Forks PandoraDots

@@ -51,6 +51,10 @@
             "zapzap",
             "planify",
             "vlc",
+            "goverlay",
+            "nvtop",
+            "cpu-x",
+            "prismlauncher",
             "thunar-archive-plugin",
             "file-roller",
             "p7zip",
@@ -61,6 +65,17 @@
             "gzip",
             "bzip2",
             "xz"
+        ],
+        "apps_optional": [
+            "flite",
+            "glfw",
+            "openal",
+            "orca",
+            "visualvm",
+            "xorg-xrandr",
+            "jdk21-openjdk",
+            "jre8-openjdk",
+            "gamemode"
         ],
         "nekro": {
             "repo": "https://github.com/PandoraDots/nekro-sense.git",

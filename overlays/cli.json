@@ -3,9 +3,6 @@
         "url": "https://github.com/PandoraDots/caelestia.git",
         "branch": "main"
     },
-    "wallpaper": {
-        "postHook": "bash \"PANDORA_ROOT_PLACEHOLDER/scripts/wallpaper-posthook.sh\""
-    },
     "theme": {
         "enableTerm": true,
         "enableHypr": true,
@@ -18,6 +15,7 @@
         "enableChromium": true,
         "enableZed": false,
         "enableCava": true,
+        "enableNvtop": true,
         "postHook": "sudo /usr/share/sddm/themes/caelestia/scripts/sync.sh --posthook",
         "iconTheme": "Papirus-Dark",
         "iconThemeLight": "Papirus-Light",

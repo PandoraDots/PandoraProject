@@ -55,7 +55,21 @@
             "planify",
             "freedownloadmanager",
             "vlc",
-            "gvfs-mtp"
+            "gvfs-mtp",
+            "goverlay",
+            "nvtop",
+            "cpu-x",
+            "prismlauncher",
+            "flite",
+            "glfw",
+            "openal",
+            "orca",
+            "visualvm",
+            "xorg-xrandr",
+            "jdk21-openjdk",
+            "jre8-openjdk",
+            "gamemode",
+            "dotnet-runtime-8.0"
         ],
         "cachyos_drivers": true
     },
@@ -77,7 +91,13 @@
             "tty-clock",
             "cursor",
             "spotify",
-            "spicetify"
+            "spicetify",
+            "goverlay",
+            "nvtop",
+            "cpu-x",
+            "hydralauncher",
+            "prismlauncher",
+            "orion-launcher"
         ]
     },
     "files": {
@@ -89,9 +109,7 @@
             "~/.config/fastfetch/config.jsonc",
             "~/.config/cava/config",
             "~/.config/fish/functions/fish_greeting.fish",
-            "~/.config/caelestia/gpu-profile.env",
-            "~/.local/bin/waywallen",
-            "~/.local/share/applications/org.waywallen.waywallen.desktop"
+            "~/.config/caelestia/gpu-profile.env"
         ],
         "optional": [
             "~/.face",
@@ -99,7 +117,14 @@
             "$PANDORA_ROOT/Wallpapers/glassesredjapan.jpg",
             "~/.config/xfce4/xfconf/xfce-perchannel-xml/thunar.xml",
             "~/.config/user-dirs.dirs",
-            "~/.local/share/icons/hicolor/scalable/apps/org.waywallen.waywallen.svg"
+            "~/.local/bin/hydralauncher",
+            "~/.local/bin/hydralauncher-4.0.5.AppImage",
+            "~/.local/share/applications/hydralauncher-4.0.5.desktop",
+            "~/.local/share/applications/io.hydralauncher.Hydra.desktop",
+            "~/.local/share/icons/hicolor/256x256/apps/io.hydralauncher.Hydra.png",
+            "~/.local/bin/orion-launcher",
+            "~/.local/share/applications/org.orionbedrock.OrionLauncher.desktop",
+            "~/.local/share/icons/hicolor/256x256/apps/org.orionbedrock.OrionLauncher.png"
         ]
     },
     "file_contains": [
@@ -172,12 +197,12 @@
         "command": "start-hyprland",
         "keyboard": "br-abnt2",
         "autologin": true,
-        "note": "initial_session → Hyprland; tuigreet só após logout; lock Caelestia no start"
+        "note": "initial_session \u2192 Hyprland; tuigreet s\u00f3 ap\u00f3s logout; lock Caelestia no start"
     },
     "sddm": {
         "theme": "maldives",
         "keyboard": "br-abnt2",
-        "note": "opcional — greeter de boot é greetd autologin"
+        "note": "opcional \u2014 greeter de boot \u00e9 greetd autologin"
     },
     "scheme": {
         "name": "inferno"
@@ -188,6 +213,9 @@
         "caelestia_shell": true,
         "dashboard_windows": true,
         "spicetify_theme": true,
-        "waywallen_wallpaper": true
+        "hydra_launcher": true,
+        "orion_launcher": true,
+        "prism_launcher": true,
+        "caelestia_wallpaper": true
     }
 }

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Orion Launcher
+GenericName=Minecraft Bedrock Launcher
+Comment=Launcher Minecraft Bedrock (OrionBE) com instancias e mods
+Exec=orion-launcher
+Icon=org.orionbedrock.OrionLauncher
+Terminal=false
+Categories=Game;Utility;
+Keywords=orion;minecraft;bedrock;launcher;
+StartupNotify=true
+StartupWMClass=OrionBE

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Hydra Launcher
+GenericName=Game Library Manager
+Comment=Gerenciador de biblioteca de jogos (Hydra)
+Exec=hydralauncher
+Icon=io.hydralauncher.Hydra
+Terminal=false
+Categories=Game;Utility;
+Keywords=hydra;games;launcher;library;
+StartupNotify=true
+StartupWMClass=hydralauncher

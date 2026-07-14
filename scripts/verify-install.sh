@@ -326,6 +326,10 @@ check_model_apps() {
         [[ -z "$pkg" ]] && continue
         check_pkg "$pkg" optional || true
     done < <(jq -r '.packages.apps[]?' "$MODEL_FILE" 2>/dev/null)
+    while IFS= read -r pkg; do
+        [[ -z "$pkg" ]] && continue
+        check_pkg "$pkg" optional || true
+    done < <(jq -r '.packages.apps_optional[]?' "$MODEL_FILE" 2>/dev/null)
 }
 
 check_hypr_user_monitor() {
@@ -422,56 +426,98 @@ check_spicetify_theme() {
     return 0
 }
 
-check_waywallen_wallpaper() {
-    local last wall path_state desktop icon shell_json layers
-    last="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/waywallen-last.txt"
-    path_state="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/wallpaper/path.txt"
-    desktop="$(waywallen_desktop_path)"
-    icon="$(waywallen_icon_path)"
-    shell_json="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/shell.json"
+check_hydra_launcher() {
+    local desktop icon bin
+    bin="$(find_hydra_binary 2>/dev/null || true)"
+    desktop="$(find_hydra_desktop 2>/dev/null || true)"
+    icon="$(hydra_icon_path)"
 
-    if [[ -x "${HOME}/.local/bin/waywallen" ]]; then
-        report OK "waywallen: binário em ~/.local/bin/waywallen"
+    if [[ -n "$bin" && -x "$bin" ]]; then
+        report OK "hydra: binário=$bin"
     else
-        report FAIL "waywallen: binário ausente (~/.local/bin/waywallen)"
+        report FAIL "hydra: binário ausente — instale via Shelly ou rode install/50-hydra.sh"
         return 1
     fi
 
-    if [[ -f "$desktop" ]] && grep -qE '^Exec=.+' "$desktop"; then
-        report OK "waywallen: launcher desktop=$desktop"
+    if [[ -n "$desktop" && -f "$desktop" ]] && grep -qE '^Exec=.+' "$desktop"; then
+        report OK "hydra: launcher desktop=$desktop"
     else
-        report FAIL "waywallen: .desktop ausente no launcher — rode install/50-waywallen.sh"
-        return 1
-    fi
-
-    if [[ -L "${HOME}/.local/bin/waywallen-ui" || -x "${HOME}/.local/bin/waywallen-ui" ]] \
-        && grep -qE 'waywallen-ui' "$desktop"; then
-        report OK "waywallen: launcher usa wrapper --no-display (waywallen-ui)"
-    else
-        report FAIL "waywallen: .desktop não aponta para waywallen-ui — rode install_waywallen_launcher"
+        report FAIL "hydra: .desktop ausente no launcher Caelestia — Shelly ou install/50-hydra.sh"
         return 1
     fi
 
     if [[ -f "$icon" ]]; then
-        report OK "waywallen: ícone=$icon"
+        report OK "hydra: ícone=$icon"
     else
-        report WARN "waywallen: ícone ausente ($icon)"
+        report WARN "hydra: ícone opcional ausente (Shelly pode usar ícone próprio)"
+    fi
+    return 0
+}
+
+check_orion_launcher() {
+    local desktop icon bin stamp tag
+    bin="$(find_orion_binary 2>/dev/null || true)"
+    desktop="$(orion_desktop_path)"
+    icon="$(orion_icon_path)"
+    stamp="$(orion_state_tag_file)"
+
+    if [[ -n "$bin" && -x "$bin" ]]; then
+        report OK "orion: binário=$bin"
+    else
+        report FAIL "orion: binário ausente — rode install/50-orion.sh"
+        return 1
     fi
 
-    # Daemon NÃO deve estar ativo: no NVIDIA o layer fica preto e cobre o Caelestia
-    if systemctl --user is-active waywallen.service &>/dev/null; then
-        report FAIL "waywallen: serviço ativo (layer preto no NVIDIA) — systemctl --user disable --now waywallen.service"
+    if [[ -f "$desktop" ]] && grep -qE '^Exec=.+' "$desktop"; then
+        report OK "orion: launcher desktop=$desktop"
+    else
+        report FAIL "orion: .desktop ausente — rode install/50-orion.sh"
         return 1
     fi
-    if systemctl --user is-enabled waywallen.service &>/dev/null; then
-        report FAIL "waywallen: serviço habilitado no boot — systemctl --user disable waywallen.service"
+
+    if [[ -f "$stamp" ]]; then
+        tag="$(<"$stamp")"
+        report OK "orion: release instalada=$tag"
+    else
+        report WARN "orion: stamp de release ausente ($stamp)"
+    fi
+
+    if pacman -Qi dotnet-runtime-8.0 &>/dev/null; then
+        report OK "orion: dotnet-runtime-8.0 instalado"
+    else
+        report WARN "orion: dotnet-runtime-8.0 ausente (XVDTool/CIK pode falhar)"
+    fi
+
+    if [[ -f "$icon" ]]; then
+        report OK "orion: ícone=$icon"
+    else
+        report WARN "orion: ícone opcional ausente"
+    fi
+    return 0
+}
+
+check_prism_launcher() {
+    if pacman -Qi prismlauncher &>/dev/null; then
+        report OK "prismlauncher: pacote instalado"
+    else
+        report FAIL "prismlauncher: ausente — rode install/15-apps.sh"
         return 1
     fi
-    report OK "waywallen: daemon desabilitado (Caelestia renderiza wallpaper)"
+    if command -v prismlauncher &>/dev/null; then
+        report OK "prismlauncher: comando=$(command -v prismlauncher)"
+    else
+        report WARN "prismlauncher: pacote ok, comando não no PATH"
+    fi
+    return 0
+}
+
+check_wallpaper_caelestia() {
+    local wall path_state shell_json layers
+    path_state="${XDG_STATE_HOME:-$HOME/.local/state}/caelestia/wallpaper/path.txt"
+    shell_json="${XDG_CONFIG_HOME:-$HOME/.config}/caelestia/shell.json"
 
     wall=""
     [[ -f "$path_state" ]] && wall="$(cat "$path_state")"
-    [[ -z "$wall" && -f "$last" ]] && wall="$(cat "$last")"
     if [[ -n "$wall" && -f "$wall" ]]; then
         report OK "wallpaper: path=$wall"
     else
@@ -481,7 +527,7 @@ check_waywallen_wallpaper() {
 
     if [[ -f "$shell_json" ]] && command -v jq &>/dev/null; then
         if ! jq -e '.background.wallpaperEnabled == true' "$shell_json" &>/dev/null; then
-            report FAIL "wallpaper: shell.json wallpaperEnabled!=true (necessário no NVIDIA)"
+            report FAIL "wallpaper: shell.json wallpaperEnabled!=true"
             return 1
         fi
         if jq -e '.background.enabled == false' "$shell_json" &>/dev/null; then
@@ -493,18 +539,12 @@ check_waywallen_wallpaper() {
 
     if command -v hyprctl &>/dev/null && hyprctl monitors &>/dev/null 2>&1; then
         layers="$(hyprctl layers 2>/dev/null || true)"
-        if grep -q 'namespace: waywallen-wallpaper' <<<"$layers"; then
-            report FAIL "wallpaper: layer waywallen-wallpaper presente (preto no NVIDIA) — pare o daemon"
-            return 1
-        fi
         if grep -q 'namespace: caelestia-background' <<<"$layers"; then
             report OK "wallpaper: layer caelestia-background ativo"
         else
-            report FAIL "wallpaper: caelestia-background ausente — reinicie: caelestia shell -d"
-            return 1
+            report WARN "wallpaper: caelestia-background ausente — reinicie: caelestia shell -d"
         fi
     fi
-
     return 0
 }
 
@@ -518,7 +558,10 @@ check_runtime() {
     check_hypr_user_monitor || true
     check_caelestia_shell_config || true
     check_spicetify_theme || true
-    check_waywallen_wallpaper || true
+    check_hydra_launcher || true
+    check_orion_launcher || true
+    check_prism_launcher || true
+    check_wallpaper_caelestia || true
 
     if command -v hyprctl &>/dev/null && hyprctl monitors &>/dev/null 2>&1; then
         report OK "runtime: sessão Hyprland ativa"

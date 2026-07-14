@@ -13,7 +13,8 @@ log "Retomando instalação Pandora — modelo: $PANDORA_MODEL"
 steps=(
     "$PANDORA_ROOT/install/30-caelestia-build.sh"
     "$PANDORA_ROOT/install/40-caelestia-install.sh"
-    "$PANDORA_ROOT/install/50-waywallen.sh"
+    "$PANDORA_ROOT/install/50-hydra.sh"
+    "$PANDORA_ROOT/install/50-orion.sh"
     "$PANDORA_ROOT/install/90-postinstall.sh"
     "$PANDORA_ROOT/install/99-verify.sh"
 )
