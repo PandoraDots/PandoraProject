@@ -118,8 +118,9 @@ O script faz merge do upstream `caelestia-dots` nos forks, rebuild cli/shell, `c
 ## Forks PandoraDots
 
 - [caelestia](https://github.com/PandoraDots/caelestia) — dots + cursor + equicord
-- [cli](https://github.com/PandoraDots/cli) — schema `inferno`
+- [cli](https://github.com/PandoraDots/cli) — schema `inferno` + tema Discord Midnight 2.1.1
 - [shell](https://github.com/PandoraDots/shell) — sem mudanças obrigatórias
+- [midnight-discord](https://github.com/PandoraDots/midnight-discord) — pin `v2.1.1-pandora` do CSS Midnight (Equibop/Vencord)
 - [nekro-sense](https://github.com/PandoraDots/nekro-sense) — driver PHN16-72
 
 ## Wallpapers
