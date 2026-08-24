@@ -1,0 +1,377 @@
+/* Pandora Inferno v2 — alto contraste preto / vermelho / branco
+ * Força overrides no WhatsApp Web (ZapZap). Verde nativo é substituído.
+ */
+
+/* ─── Tokens ───
+ * bg: #000000 | panel: #0a0a0a | bubble-out: #4a0a0a | accent: #cc3333 | text: #ffffff
+ */
+
+html,
+html.dark,
+body,
+body.dark,
+.dark,
+#app,
+#app.dark,
+#outer-frame,
+#mount_0_0,
+#side,
+#main,
+:root {
+  color-scheme: dark !important;
+
+  /* Accents / brand (mata o verde) */
+  --WDS-accent: #cc3333 !important;
+  --WDS-accent-rgb: 204, 51, 51 !important;
+  --WDS-primary: #cc3333 !important;
+  --WDS-brand: #cc3333 !important;
+  --WDS-green: #cc3333 !important;
+  --WDS-green-rgb: 204, 51, 51 !important;
+  --wa-sysColor-primary: #cc3333 !important;
+  --wa-sysColor-primary-rgb: 204, 51, 51 !important;
+
+  --green: #cc3333 !important;
+  --green-rgb: 204, 51, 51 !important;
+  --teal: #cc3333 !important;
+  --teal-lighter: #e65555 !important;
+  --teal-light: #ff6666 !important;
+  --teal-pale: #3a1010 !important;
+
+  --button-primary-background: #cc3333 !important;
+  --button-primary-background-hover: #e65555 !important;
+  --button-primary-background-disabled: #3a0000 !important;
+  --button-primary: #ffffff !important;
+  --button-round-background: #cc3333 !important;
+  --button-secondary: #ffffff !important;
+  --button-secondary-background: #121212 !important;
+  --button-secondary-hover: #1a1a1a !important;
+  --button-secondary-color: #ffffff !important;
+  --button-disabled: #666666 !important;
+  --button-plain-background: transparent !important;
+
+  --checkbox: #cc3333 !important;
+  --checkbox-mark: #ffffff !important;
+  --switch-button-checked-color: #cc3333 !important;
+  --switch-track-checked: #cc3333 !important;
+
+  --icon-ack: #cc3333 !important;
+  --icon-accent: #cc3333 !important;
+  --icon-bright-highlight: #ff6666 !important;
+  --icon-pinned: #cc3333 !important;
+  --icon: #dddddd !important;
+  --icon-strong: #ffffff !important;
+  --icon-fixed: #ffffff !important;
+  --icon-lighter: #aaaaaa !important;
+  --icon-disabled: #666666 !important;
+
+  --unread-marker-background: #cc3333 !important;
+  --unread-marker-text: #ffffff !important;
+  --unread-bar: #cc3333 !important;
+  --chatlist-icon: #cccccc !important;
+
+  --ptt-green: #cc3333 !important;
+  --ptt-green-rgb: 204, 51, 51 !important;
+  --ptt-ooc-background: #3a0000 !important;
+  --audio-progress-outgoing: #cc3333 !important;
+  --audio-progress-played-outgoing: #e65555 !important;
+  --audio-progress-incoming: #991111 !important;
+  --audio-progress-played-incoming: #b30000 !important;
+
+  --progress-primary: #cc3333 !important;
+  --progress-background: #1a1a1a !important;
+  --typing: #cc3333 !important;
+  --highlight: #cc3333 !important;
+  --input-border-active: #cc3333 !important;
+  --focus: #cc3333 !important;
+  --focus-animation-rgb: 204, 51, 51 !important;
+  --live-location-foreground: #cc3333 !important;
+  --active-tab-marker: #cc3333 !important;
+  --tab-marker-selected: #cc3333 !important;
+  --chat-marker: #cc3333 !important;
+  --chat-marker-border: #b30000 !important;
+  --chat-marker-admin: #ff8866 !important;
+  --status-primary: #cc3333 !important;
+  --status-secondary: #e65555 !important;
+  --danger: #ff4444 !important;
+
+  /* Bubbles — fora com o verde #005c4b */
+  --outgoing-background: #4a0a0a !important;
+  --outgoing-background-rgb: 74, 10, 10 !important;
+  --outgoing-background-deeper: #2e0505 !important;
+  --outgoing-background-deeper-rgb: 46, 5, 5 !important;
+  --outgoing-background-highlight: #6a1515 !important;
+  --outgoing-background-highlight-rgb: 106, 21, 21 !important;
+  --msg-out-0: #4a0a0a !important;
+  --msg-out-0-rgb: 74, 10, 10 !important;
+  --msg-out-1: #2e0505 !important;
+  --msg-out-1-rgb: 46, 5, 5 !important;
+  --msg-ack: #cc3333 !important;
+  --msg-ack-rgb: 204, 51, 51 !important;
+
+  --incoming-background: #121212 !important;
+  --incoming-background-rgb: 18, 18, 18 !important;
+  --incoming-background-deeper: #0a0a0a !important;
+  --incoming-background-deeper-rgb: 10, 10, 10 !important;
+  --msg-in-0: #121212 !important;
+  --msg-in-0-rgb: 18, 18, 18 !important;
+  --msg-in-1: #0a0a0a !important;
+  --msg-in-1-rgb: 10, 10, 10 !important;
+
+  --system-message-background: #1a0a0a !important;
+  --system-message-text: #ffffff !important;
+
+  /* Superfícies pretas (alto contraste) */
+  --background-default: #000000 !important;
+  --background-default-active: #1a0a0a !important;
+  --background-default-hover: #140808 !important;
+  --background-lighter: #0a0a0a !important;
+  --app-background: #000000 !important;
+  --app-background-deeper: #000000 !important;
+  --app-background-stripe: #000000 !important;
+  --intro-background: #000000 !important;
+  --conversation-panel-background: #000000 !important;
+  --conversation-panel-border: #1a1a1a !important;
+  --panel-background: #0a0a0a !important;
+  --panel-background-rgb: 10, 10, 10 !important;
+  --panel-background-lighter: #0a0a0a !important;
+  --panel-background-colored: #0a0a0a !important;
+  --panel-background-colored-deeper: #000000 !important;
+  --panel-header-background: #0a0a0a !important;
+  --panel-header-icon: #ffffff !important;
+  --drawer-background: #000000 !important;
+  --drawer-section-background: #0a0a0a !important;
+  --drawer-gallery-background: #000000 !important;
+  --dropdown-background: #0a0a0a !important;
+  --dropdown-background-hover: #1a0a0a !important;
+  --compose-panel-background: #0a0a0a !important;
+  --compose-input-background: #121212 !important;
+  --compose-input-border: #333333 !important;
+  --compose-panel-background-hover: #121212 !important;
+  --rich-text-panel-background: #0a0a0a !important;
+  --search-input-background: #121212 !important;
+  --search-container-background: #000000 !important;
+  --filters-container-background: #000000 !important;
+  --media-viewer-background: #000000 !important;
+  --modal-background: #0a0a0a !important;
+  --modal-backdrop: rgba(0, 0, 0, 0.85) !important;
+  --toast-background: #1a0a0a !important;
+  --tooltip-background: #1a0a0a !important;
+  --notification-biz-background: #1a0a0a !important;
+  --butterbar-default-background: #2a0a0a !important;
+  --status-background: #000000 !important;
+  --avatar-background: #121212 !important;
+  --avatar-placeholder-background: #2a0a0a !important;
+  --avatar-placeholder-primary: #cc3333 !important;
+  --border-list: #1a1a1a !important;
+  --border-strong: #333333 !important;
+  --border-stronger: #555555 !important;
+  --border-panel: #1a1a1a !important;
+  --border-default: #1a1a1a !important;
+  --shadow: #000000 !important;
+  --shadow-light: rgba(204, 51, 51, 0.2) !important;
+  --scrollbar-thumb: #333333 !important;
+  --scrollbar-thumb-hover: #555555 !important;
+  --scrollbar-track: transparent !important;
+
+  /* Texto branco */
+  --primary: #ffffff !important;
+  --primary-strong: #ffffff !important;
+  --primary-stronger: #ffffff !important;
+  --primary-muted: #dddddd !important;
+  --secondary: #cccccc !important;
+  --secondary-lighter: #aaaaaa !important;
+  --secondary-stronger: #ffffff !important;
+  --text-primary: #ffffff !important;
+  --text-secondary: #dddddd !important;
+  --text-muted: #aaaaaa !important;
+  --message-primary: #ffffff !important;
+  --quoted-message-text: #dddddd !important;
+
+  /* Filtros (chip "Tudo" etc.) */
+  --filters-item-background: #121212 !important;
+  --filters-item-color: #ffffff !important;
+  --filters-item-background-active: #cc3333 !important;
+  --filters-item-color-active: #ffffff !important;
+  --chip-button-background: #121212 !important;
+  --chip-button-foreground: #ffffff !important;
+  --chip-button-background-active: #cc3333 !important;
+  --chip-button-foreground-active: #ffffff !important;
+}
+
+/* ─── Chips / filtros ativos ─── */
+#side button[aria-pressed="true"],
+#side button[aria-selected="true"],
+#side div[role="button"][aria-pressed="true"],
+#side div[aria-selected="true"],
+button[aria-pressed="true"],
+[role="tab"][aria-selected="true"] {
+  background-color: #cc3333 !important;
+  background: #cc3333 !important;
+  color: #ffffff !important;
+  border-color: #cc3333 !important;
+}
+
+#side button[aria-pressed="true"] span,
+#side button[aria-selected="true"] span,
+button[aria-pressed="true"] *,
+[role="tab"][aria-selected="true"] * {
+  color: #ffffff !important;
+}
+
+/* ─── Bolhas outgoing: mata verde #005c4b ─── */
+.message-out,
+.message-out .copyable-text,
+div.message-out,
+div[class*="message-out"],
+#main [data-testid="msg-container"].message-out > div,
+#main [data-testid="msg-container"].message-out > div > div,
+#main .message-out [data-testid="msg-container"] > div > div,
+#main div._amk4,
+#main div[class*="message-out"] > div > div {
+  --outgoing-background: #4a0a0a !important;
+  --outgoing-background-rgb: 74, 10, 10 !important;
+  background-color: #4a0a0a !important;
+  background: #4a0a0a !important;
+}
+
+/* Heurística: verde WA clássico via background/color inline */
+[style*="rgb(0, 92, 75)"],
+[style*="rgb(5, 71, 64)"],
+[style*="rgb(0, 168, 132)"],
+[style*="rgb(37, 211, 102)"],
+[style*="rgb(33, 192, 99)"],
+[style*="#005c4b"],
+[style*="#005C4B"],
+[style*="#00a884"],
+[style*="#00A884"],
+[style*="#25d366"],
+[style*="#25D366"],
+[style*="#21c063"],
+[style*="#21C063"] {
+  background-color: #4a0a0a !important;
+  background: #4a0a0a !important;
+  color: #ffffff !important;
+  fill: #cc3333 !important;
+  border-color: #cc3333 !important;
+}
+
+/* ─── Links / Ler mais ─── */
+#app a,
+#app a:link,
+#app a:visited,
+#main a,
+#main [role="link"],
+#main span[role="button"].read-more-button,
+#main span[data-testid="read-more"],
+#main div.copyable-text a,
+#main .selectable-text a {
+  color: #cc3333 !important;
+}
+
+#app a:hover,
+#main a:hover {
+  color: #e65555 !important;
+}
+
+/* ─── Badges / checks / mic / PTT / send ─── */
+span[data-icon="status-v3-unread"] svg path,
+span[data-icon="status-v3"] svg path,
+span[data-icon="msg-dblcheck"] svg path,
+span[data-icon="msg-check"] svg path,
+span[data-icon="msg-dblcheck-ack"] svg path,
+span[data-icon="msg-dblcheck-ack"] path,
+span[data-testid="msg-dblcheck"] svg path,
+span[data-icon="send"] svg path,
+span[data-icon="send-light"] svg path,
+span[data-icon="ptt"] svg path,
+span[data-icon="ptt-in-progress"] svg path,
+span[data-icon="audio-play"] svg path,
+span[data-icon="audio-pause"] svg path,
+span[data-icon="mic"] svg path,
+span[data-icon="mic-filled"] svg path,
+span[data-icon="voice"] svg path,
+span[data-icon="voice-note"] svg path,
+[data-icon="checkbox-round-checked"] svg path,
+[data-icon="retracted"] svg path,
+footer span[data-icon] svg path,
+#main span[data-icon="ptt"] svg *,
+#main span[data-icon="audio-play"] svg *,
+#pane-side svg path[fill="#25d366"],
+#pane-side svg path[fill="#00a884"],
+#app svg path[fill="#25D366"],
+#app svg path[fill="#25d366"],
+#app svg path[fill="#00a884"],
+#app svg path[fill="#00A884"],
+#app svg path[fill="#21c063"] {
+  fill: #cc3333 !important;
+  stroke: #cc3333 !important;
+}
+
+/* Logo / ícones com fill atual via currentColor verde */
+#app span[data-icon="wa-wordmark-refreshed"] svg path,
+#app span[data-icon="whatsapp-logo"] svg path,
+#app span[data-icon="logo"] svg path,
+#side header svg path {
+  fill: #cc3333 !important;
+}
+
+/* Badges numéricos (não lidas) */
+#side span[aria-label*="não lida"],
+#side span[aria-label*="unread"],
+#app span[data-testid="icon-unread-count"],
+div[aria-label*="não lida"] > span,
+div[aria-label*="unread"] > span {
+  background-color: #cc3333 !important;
+  color: #ffffff !important;
+}
+
+/* Checkbox / switch */
+[role="checkbox"][aria-checked="true"],
+[data-testid="checkbox-checked"] {
+  background-color: #cc3333 !important;
+  border-color: #cc3333 !important;
+}
+
+/* Texto geral mais branco */
+#app,
+#app #main,
+#app #side,
+#app .copyable-text,
+#app span,
+#app p,
+#app div[dir="ltr"],
+#app div[dir="auto"] {
+  --primary: #ffffff !important;
+}
+
+#app .selectable-text,
+#app .copyable-text span,
+#app [data-testid="conversation-info-header"] span {
+  color: #ffffff !important;
+}
+
+/* Previews / secundário um pouco mais claros (ainda legíveis) */
+#side [data-testid="cell-frame-secondary"] span,
+#side span[title] {
+  color: #dddddd !important;
+}
+
+/* Wallpaper doodle mais escuro (mais contraste) */
+[data-asset-chat-background-dark],
+div[style*="background-image"][style*="chat-background"] {
+  opacity: 0.35 !important;
+  filter: grayscale(1) brightness(0.55) contrast(1.1) !important;
+}
+
+/* Input / compose */
+footer,
+footer * {
+  --compose-panel-background: #0a0a0a !important;
+  --compose-input-background: #121212 !important;
+}
+
+footer div[contenteditable="true"],
+footer div[role="textbox"] {
+  color: #ffffff !important;
+  caret-color: #cc3333 !important;
+}

@@ -1,0 +1,290 @@
+/* Pandora Inferno — Spotify/Spicetify
+ * Preto + vermelho #cc3333 + texto branco. Mata verde Spotify (#1ed760 etc.).
+ */
+
+:root,
+.encore-dark-theme,
+.encore-light-theme,
+body,
+html {
+  --spice-text: #ffffff !important;
+  --spice-subtext: #cccccc !important;
+  --spice-main: #000000 !important;
+  --spice-main-elevated: #0a0a0a !important;
+  --spice-highlight: #cc3333 !important;
+  --spice-highlight-elevated: #1a0a0a !important;
+  --spice-sidebar: #000000 !important;
+  --spice-player: #1a0505 !important;
+  --spice-card: #121212 !important;
+  --spice-shadow: #000000 !important;
+  --spice-button: #cc3333 !important;
+  --spice-button-active: #cc3333 !important;
+  --spice-button-disabled: #4a3030 !important;
+  --spice-tab-active: #1a0a0a !important;
+  --spice-selected-row: #ffffff !important;
+  --spice-misc: #cc3333 !important;
+  --spice-notification: #6e5555 !important;
+  --spice-notification-error: #ff4444 !important;
+
+  --spice-rgb-text: 255, 255, 255 !important;
+  --spice-rgb-subtext: 204, 204, 204 !important;
+  --spice-rgb-main: 0, 0, 0 !important;
+  --spice-rgb-main-elevated: 10, 10, 10 !important;
+  --spice-rgb-button: 204, 51, 51 !important;
+  --spice-rgb-button-active: 204, 51, 51 !important;
+  --spice-rgb-sidebar: 0, 0, 0 !important;
+  --spice-rgb-shadow: 0, 0, 0 !important;
+  --spice-rgb-highlight: 204, 51, 51 !important;
+
+  /* Tokens nativos Spotify (verde → vermelho) */
+  --text-bright-accent: #cc3333 !important;
+  --text-positive: #cc3333 !important;
+  --essential-bright-accent: #cc3333 !important;
+  --essential-positive: #cc3333 !important;
+  --decorative-base: #cc3333 !important;
+  --decorative-subdued: #b30000 !important;
+  --background-highlight: #1a0a0a !important;
+  --bg-highlight: #1a0a0a !important;
+  --is-active-fg-color: #cc3333 !important;
+}
+
+/* Play / Follow / botões de accent (Spicetify deixa hover/press verdes) */
+.encore-bright-accent-set,
+.encore-dark-theme .encore-bright-accent-set,
+.encore-light-theme .encore-bright-accent-set,
+.encore-inverted-light-set,
+.encore-dark-theme .encore-inverted-light-set,
+.encore-light-theme .encore-inverted-light-set {
+  --background-base: #cc3333 !important;
+  --background-highlight: #e65555 !important;
+  --background-press: #b30000 !important;
+  --background-elevated-base: #e65555 !important;
+  --background-elevated-highlight: #ff6666 !important;
+  --background-elevated-press: #cc3333 !important;
+  --background-tinted-base: #cc3333 !important;
+  --background-tinted-highlight: #e65555 !important;
+  --background-tinted-press: #b30000 !important;
+  --text-base: #ffffff !important;
+  --text-subdued: #ffffff !important;
+  --text-bright-accent: #ffffff !important;
+  --text-negative: #ffffff !important;
+  --essential-base: #ffffff !important;
+  --essential-subdued: #ffffff !important;
+  --essential-bright-accent: #ffffff !important;
+  --decorative-base: #ffffff !important;
+  --decorative-subdued: #ffcccc !important;
+  background-color: #cc3333 !important;
+  color: #ffffff !important;
+}
+
+.encore-bright-accent-set:hover,
+.encore-inverted-light-set:hover {
+  background-color: #e65555 !important;
+}
+
+.encore-bright-accent-set:active,
+.encore-inverted-light-set:active {
+  background-color: #b30000 !important;
+}
+
+.x-progressBar-fillColor,
+.playback-bar__progress-bar-fill,
+[data-testid="progress-bar"] [style*="transform"],
+.x-progressBarProgressBarFill {
+  background-color: #cc3333 !important;
+  background: #cc3333 !important;
+}
+
+/* Corações / liked / checks positivos */
+button[aria-checked="true"],
+.main-addButton-active,
+.main-trackList-rowHeartButton[aria-checked="true"],
+[aria-label*="Remove from Your Library"],
+[aria-label*="Remover da Sua biblioteca"] {
+  color: #cc3333 !important;
+}
+
+svg[fill="#1ed760"],
+svg[fill="#1DB954"],
+svg[fill="#1db954"],
+path[fill="#1ed760"],
+path[fill="#1DB954"],
+path[fill="#1db954"] {
+  fill: #cc3333 !important;
+}
+
+/* Remapeia verdes inline remanescentes */
+[style*="#1ed760"],
+[style*="#1ED760"],
+[style*="#1db954"],
+[style*="#1DB954"],
+[style*="rgb(30, 215, 96)"],
+[style*="rgb(29, 185, 84)"] {
+  color: #cc3333 !important;
+  background-color: #cc3333 !important;
+  fill: #cc3333 !important;
+  border-color: #cc3333 !important;
+}
+
+/* Header de playlist: sem gradiente roxo/extraído da capa — preto Inferno */
+.main-entityHeader-backgroundColor,
+.main-actionBarBackground-background,
+.main-topBar-overlay,
+.playlist-playlist-playlistContentAreaScrollingElement > div[style*="background"],
+div[data-testid="entity-header"] [style*="background-color"],
+.under-main-view > div[style*="background"] {
+  background-color: #000000 !important;
+  background-image: none !important;
+  background: #000000 !important;
+}
+
+.main-entityHeader-background,
+.main-entityHeader-background.main-entityHeader-overlay,
+.main-entityHeader-container::before,
+.main-entityHeader-container::after {
+  background: linear-gradient(180deg, #1a0505 0%, #000000 70%) !important;
+  background-image: linear-gradient(180deg, #1a0505 0%, #000000 70%) !important;
+}
+
+.main-actionBarBackground-background {
+  display: none !important;
+}
+
+.main-view-container__scroll-node-child div[style*="--background-base"]:not([style*="--background-base-min-contrast"]) {
+  display: none !important;
+}
+
+.main-entityHeader-backgroundColor,
+.main-actionBarBackground-background {
+  background-color: unset !important;
+  background-image: none;
+}
+
+.main-home-homeHeader {
+  display: none !important;
+}
+
+.main-home-filterChipsContainer {
+  background: linear-gradient(to bottom, #0a0a0a, #000000) !important;
+}
+
+.main-home-filterChipsSection {
+  background: transparent !important;
+}
+
+.search-searchCategory-contentArea::before,
+.search-searchCategory-contentArea::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Chips ativos / filtros */
+.x-categoryList-categoryListDropdownButton[aria-expanded="true"],
+button[aria-checked="true"].x-filterChip-filterChip,
+.encore-text-body-small-bold[aria-checked="true"],
+[data-testid="chip"][aria-checked="true"] {
+  background-color: #cc3333 !important;
+  color: #ffffff !important;
+}
+
+/* Texto principal branco */
+.main-entityHeader-title,
+.main-type-alto,
+.main-type-ballad,
+.main-type-bass,
+.main-trackList-rowTitle,
+.main-trackInfo-name,
+.main-nowPlayingWidget-trackInfo a,
+.Root__main-view {
+  color: #ffffff !important;
+}
+
+.main-trackList-rowSubTitle,
+.main-trackInfo-artists,
+.main-entityHeader-metaData,
+.main-type-mesto {
+  color: #cccccc !important;
+}
+
+.main-topBar-searchBar,
+#recent-searches-dropdown > div {
+  background-color: #0a0a0a !important;
+  color: #ffffff !important;
+}
+
+.main-topBar-background {
+  background: linear-gradient(to bottom, #0a0a0a, #000000) !important;
+}
+
+.main-topBar-overlay {
+  background: linear-gradient(to bottom, transparent, #0a0a0a) !important;
+  display: block !important;
+}
+
+.main-topBar-background[style*="--background-base"] {
+  --background-base: transparent !important;
+  background: linear-gradient(to bottom, #0a0a0a, #000000) !important;
+}
+
+.playlist-playlist-actionBarBackground-background {
+  visibility: hidden;
+}
+
+.main-entityHeader-shadow {
+  -webkit-box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+}
+
+.main-entityHeader-container.main-entityHeader-nonWrapped {
+  min-height: 325px;
+  height: 15vh;
+}
+
+.x-filterBox-expandButton {
+  border-radius: 1000px !important;
+}
+
+.encore-text-body-small-bold {
+  border-radius: 10px !important;
+}
+
+button,
+.main-trackList-trackListRow,
+.main-contextMenu-menuItemButton {
+  transition: color 200ms cubic-bezier(0, 0.55, 0.45, 1),
+    background-color 200ms cubic-bezier(0, 0.55, 0.45, 1) !important;
+}
+
+.os-scrollbar-handle {
+  background: #cc3333 !important;
+  border-radius: 8px;
+}
+
+.os-theme-spotify.os-host-transition
+  > .os-scrollbar-vertical
+  > .os-scrollbar-track
+  > .os-scrollbar-handle {
+  border-radius: 8px;
+  width: 4px;
+  background-color: #4a3030;
+}
+
+.os-theme-spotify.os-host-transition
+  > .os-scrollbar-vertical
+  > .os-scrollbar-track {
+  width: 4px;
+}
+
+/* Toggle / switch ligado */
+.x-toggle-indicatorWrapper,
+input:checked ~ .x-toggle-indicatorWrapper {
+  background-color: #cc3333 !important;
+}
+
+/* Now playing / volume bars */
+.volume-bar .progress-bar__fg,
+.volume-bar .x-progressBar-fillColor,
+.playback-progressbar .x-progressBar-fillColor {
+  background-color: #cc3333 !important;
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=Pandora PerfectSense fan curve (boost perto de 85–90°C no Turbo)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/PandoraProject/scripts/perfectsense-fan-curve.sh
+Restart=on-failure
+RestartSec=3
+Environment=PANDORA_ROOT=%h/PandoraProject
+
+[Install]
+WantedBy=default.target

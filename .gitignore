@@ -1,2 +1,12 @@
 *.bak
 .DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# zapzap-pandora makepkg artifacts
+packages/zapzap-pandora/src/
+packages/zapzap-pandora/pkg/
+packages/zapzap-pandora/zapzap/
+packages/zapzap-pandora/*.pkg.tar.*
+packages/zapzap-pandora/*.pkg.tar.*.sig

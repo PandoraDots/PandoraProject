@@ -61,6 +61,11 @@ check_pkg() {
     local alias resolved
     alias="$(pandora_pkg_alias "$pkg")"
     [[ -n "$alias" ]] && pkg="$alias"
+    # zapzap AUR é substituído pelo pacote local Inferno
+    if [[ "$pkg" == "zapzap" ]] && pacman -Qi zapzap-pandora &>/dev/null; then
+        report OK "pacote: zapzap (via zapzap-pandora)"
+        return 0
+    fi
     if pacman -Qi "$pkg" &>/dev/null; then
         report OK "pacote: $pkg"
         return 0
@@ -128,7 +133,7 @@ check_file_contains() {
         fi
         return 1
     fi
-    if grep -qF "$pattern" "$path" 2>/dev/null; then
+    if grep -qF -- "$pattern" "$path" 2>/dev/null; then
         report OK "conteúdo ($label): $path"
         return 0
     fi
@@ -308,7 +313,7 @@ check_scheme() {
     fi
     if [[ -f "$cava_cfg" ]] && grep -qE "gradient_color_[0-9]+ = '#[0-9A-Fa-f]{6}'" "$cava_cfg"; then
         report OK "cava: gradient do schema (hex)"
-    elif [[ -f "$cava_cfg" ]] && grep -qE "gradient_color_1 = '#3d0000'" "$cava_cfg"; then
+    elif [[ -f "$cava_cfg" ]] && grep -qE "gradient_color_1 = '#220000'" "$cava_cfg"; then
         report WARN "cava: ainda no fallback vermelho — rode sync_cava_from_scheme"
     else
         report WARN "cava: cores não reconhecidas em $cava_cfg"
@@ -317,6 +322,61 @@ check_scheme() {
         report OK "cava: template Caelestia em $cava_tpl"
     else
         report WARN "cava: falta templates/cava.conf (schema sync)"
+    fi
+}
+
+check_hyprland_stack() {
+    local ver
+    ver="$(pacman -Q hyprland 2>/dev/null | awk '{print $2}' || true)"
+    if [[ -z "$ver" ]]; then
+        report FAIL "hyprland: pacote ausente"
+        return 1
+    fi
+    if pandora_hyprland_version_ok; then
+        report OK "hyprland: $ver (≥$(pandora_hyprland_min_version), hl.dsp OK)"
+    else
+        report FAIL "hyprland: $ver < $(pandora_hyprland_min_version) — dashboard/binds Pandora quebram"
+    fi
+
+    local p
+    for p in aquamarine hyprutils xdg-desktop-portal-hyprland libcava; do
+        if pacman -Q "$p" &>/dev/null; then
+            report OK "stack: $(pacman -Q "$p")"
+        else
+            report WARN "stack: $p ausente"
+        fi
+    done
+
+    if pacman -Q noctalia-qs &>/dev/null; then
+        report FAIL "stack: noctalia-qs instalado — remove e use quickshell/quickshell-git (Caelestia)"
+    elif pacman -Q quickshell-git &>/dev/null; then
+        report OK "stack: $(pacman -Q quickshell-git)"
+    elif pacman -Q quickshell &>/dev/null; then
+        report OK "stack: $(pacman -Q quickshell)"
+    else
+        report FAIL "stack: nem quickshell nem quickshell-git instalados"
+    fi
+
+    if pandora_runtime_changed; then
+        report WARN "runtime stamp desatualizado — rode: PANDORA_FORCE_REBUILD=1 $PANDORA_ROOT/scripts/update.sh"
+    else
+        report OK "runtime stamp: sincronizado com Hyprland/libcava/qs/forks"
+    fi
+
+    # Shell plugin deve linkar libcava (visualizer Caelestia)
+    local so
+    so="$(find /usr/lib/qt6/qml/Caelestia /usr/lib /usr/lib64 "${HOME}/.local/lib/caelestia" \
+        -name 'libcaelestia-services.so' 2>/dev/null | head -1 || true)"
+    if [[ -z "$so" ]]; then
+        so="$(find /usr/lib/qt6/qml/Caelestia /usr/lib /usr/lib64 "${HOME}/.local/lib/caelestia" \
+            -name 'libcaelestia-*.so' 2>/dev/null | head -1 || true)"
+    fi
+    if [[ -n "$so" ]] && command -v ldd &>/dev/null; then
+        if ldd "$so" 2>/dev/null | rg -q 'libcava|cavacore|cava\.so'; then
+            report OK "shell plugin: linka cava ($so)"
+        else
+            report WARN "shell plugin: sem libcava em ldd — recompile após update de libcava"
+        fi
     fi
 }
 
@@ -330,6 +390,96 @@ check_model_apps() {
         [[ -z "$pkg" ]] && continue
         check_pkg "$pkg" optional || true
     done < <(jq -r '.packages.apps_optional[]?' "$MODEL_FILE" 2>/dev/null)
+}
+
+check_nekro_sense() {
+    jq -e '.packages.nekro' "$MODEL_FILE" &>/dev/null || return 0
+
+    local kernel module_file vermagic base fan_file battery_file per_zone_file four_mode_file expected_rgb actual_rgb
+    kernel="$(uname -r)"
+
+    if module_file="$(modinfo -n nekro_sense 2>/dev/null)"; then
+        report OK "nekro-sense: módulo encontrado para kernel $kernel ($module_file)"
+    else
+        report FAIL "nekro-sense: módulo ausente para kernel $kernel — recompile: make -C $HOME/nekro-sense LLVM=1 && sudo make -C $HOME/nekro-sense LLVM=1 install"
+        if find /usr/lib/modules -path '*/kernel/drivers/platform/x86/nekro_sense.ko' 2>/dev/null | grep -q .; then
+            while IFS= read -r old; do
+                report WARN "nekro-sense: módulo antigo encontrado fora do kernel atual: $old"
+            done < <(find /usr/lib/modules -path '*/kernel/drivers/platform/x86/nekro_sense.ko' 2>/dev/null | sort)
+        fi
+        return 1
+    fi
+
+    vermagic="$(modinfo -F vermagic nekro_sense 2>/dev/null || true)"
+    if [[ "$vermagic" == "$kernel "* ]]; then
+        report OK "nekro-sense: vermagic compatível ($vermagic)"
+    else
+        report FAIL "nekro-sense: vermagic incompatível com kernel atual ($vermagic vs $kernel)"
+    fi
+
+    if lsmod | awk '{print $1}' | grep -qx 'nekro_sense'; then
+        report OK "nekro-sense: módulo carregado"
+    else
+        report FAIL "nekro-sense: módulo não carregado — systemd enabled sozinho não basta; confira systemd-modules-load/modprobe"
+    fi
+
+    if [[ -f /etc/modules-load.d/nekro_sense.conf ]] && grep -qx 'nekro_sense' /etc/modules-load.d/nekro_sense.conf; then
+        report OK "nekro-sense: modules-load configurado"
+    else
+        report FAIL "nekro-sense: falta /etc/modules-load.d/nekro_sense.conf com nekro_sense"
+    fi
+
+    if journalctl -b -u systemd-modules-load.service --no-pager 2>/dev/null | grep -q "Failed to find module 'nekro_sense'"; then
+        report WARN "nekro-sense: boot atual registrou 'Failed to find module' — provável kernel atualizado sem rebuild antes desta sessão"
+    fi
+
+    if [[ -d /sys/module/nekro_sense/drivers/platform:acer-wmi/acer-wmi ]]; then
+        base="/sys/module/nekro_sense/drivers/platform:acer-wmi/acer-wmi"
+    elif [[ -d /sys/devices/platform/acer-wmi ]]; then
+        base="/sys/devices/platform/acer-wmi"
+    else
+        report FAIL "nekro-sense: sysfs acer-wmi ausente; predator_sense/four_zoned_kb não foram expostos"
+        return 1
+    fi
+    report OK "nekro-sense: sysfs base $base"
+
+    fan_file="$base/predator_sense/fan_speed"
+    battery_file="$base/predator_sense/battery_limiter"
+    per_zone_file="$base/four_zoned_kb/per_zone_mode"
+    four_mode_file="$base/four_zoned_kb/four_zone_mode"
+
+    if [[ -r "$fan_file" ]]; then
+        report OK "nekro-sense: fan_speed legível ($(cat "$fan_file" 2>/dev/null))"
+    else
+        report FAIL "nekro-sense: fan_speed ausente/ilegível em $fan_file"
+    fi
+    if [[ -r "$battery_file" ]]; then
+        report OK "nekro-sense: battery_limiter legível ($(cat "$battery_file" 2>/dev/null))"
+    else
+        report FAIL "nekro-sense: battery_limiter ausente/ilegível em $battery_file"
+    fi
+    if [[ -r "$per_zone_file" ]]; then
+        actual_rgb="$(cat "$per_zone_file" 2>/dev/null || true)"
+        expected_rgb="$(jq -r '.nekro_defaults.rgb_zones | join(",")' "$MODEL_FILE" 2>/dev/null)"
+        if [[ -n "$expected_rgb" && "$actual_rgb" == "$expected_rgb"* ]]; then
+            report OK "nekro-sense: RGB per-zone aplicado ($actual_rgb)"
+        else
+            report WARN "nekro-sense: RGB per-zone difere do padrão Pandora ($actual_rgb; esperado prefixo $expected_rgb)"
+        fi
+    else
+        report FAIL "nekro-sense: per_zone_mode ausente/ilegível em $per_zone_file"
+    fi
+    if [[ -r "$four_mode_file" ]]; then
+        report OK "nekro-sense: four_zone_mode legível"
+    else
+        report FAIL "nekro-sense: four_zone_mode ausente/ilegível em $four_mode_file"
+    fi
+
+    if [[ -d "$base/hwmon" ]] && find "$base/hwmon" -name 'fan*_input' -readable 2>/dev/null | grep -q .; then
+        report OK "nekro-sense: hwmon expõe ventoinhas/temperaturas"
+    else
+        report WARN "nekro-sense: hwmon sem fan*_input sob $base"
+    fi
 }
 
 check_hypr_user_monitor() {
@@ -410,6 +560,8 @@ check_caelestia_shell() {
 
 check_spicetify_theme() {
     local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/config-xpui.ini"
+    local css="${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/Themes/caelestia/user.css"
+    local color="${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/Themes/caelestia/color.ini"
     if [[ ! -f "$cfg" ]]; then
         report WARN "spicetify: config-xpui.ini ausente"
         return 1
@@ -421,6 +573,16 @@ check_spicetify_theme() {
     if ! grep -qE '^version[[:space:]=]+.+' "$cfg"; then
         report FAIL "spicetify: Backup vazio — rode spicetify backup apply"
         return 1
+    fi
+    if [[ -f "$css" ]] && grep -q 'Pandora Inferno' "$css" && grep -q '#cc3333' "$css"; then
+        report OK "spicetify: CSS Inferno (preto/vermelho)"
+    else
+        report WARN "spicetify: user.css sem overlay Inferno — rode deploy_overlays"
+    fi
+    if [[ -f "$color" ]] && grep -qE 'button[[:space:]]*=[[:space:]]*cc3333' "$color"; then
+        report OK "spicetify: color.ini Inferno (button=cc3333)"
+    else
+        report WARN "spicetify: color.ini sem accent Inferno"
     fi
     report OK "spicetify: tema caelestia aplicado (backup ok)"
     return 0
@@ -556,6 +718,7 @@ check_runtime() {
     report OK "python: materialyoucolor + pillow"
 
     check_hypr_user_monitor || true
+    check_hyprland_stack || true
     check_caelestia_shell_config || true
     check_spicetify_theme || true
     check_hydra_launcher || true
@@ -682,6 +845,7 @@ done < <(jq -r '.systemd_system.disabled[]?' "$MANIFEST")
 
 check_display_manager || true
 check_scheme || true
+check_nekro_sense || true
 check_runtime || true
 
 # --- Resumo ---

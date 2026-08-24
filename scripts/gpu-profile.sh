@@ -38,18 +38,39 @@ export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json
 EOF
 fi
 
-# Sincroniza perfil ACPI do nekro-sense quando disponível (só se mudou)
-if [[ -f /sys/firmware/acpi/platform_profile_choices && -f /sys/firmware/acpi/platform_profile ]]; then
+# Sincroniza perfil ACPI do nekro-sense quando disponível (só se mudou).
+# PerfectSense é a fonte de verdade dos 5 modos EC.
+# Eco (low-power) e Quiet mapeiam ambos para PPD power-saver — NÃO colapsar Eco→Quiet.
+if [[ "${PANDORA_PERFECTSENSE:-0}" != "1" ]] \
+    && [[ -f /sys/firmware/acpi/platform_profile_choices && -f /sys/firmware/acpi/platform_profile ]]; then
+    current="$(tr -d '[:space:]' </sys/firmware/acpi/platform_profile 2>/dev/null || true)"
+    state_ec=""
+    state_file="${XDG_STATE_HOME:-$HOME/.local/state}/pandora/perfectsense.json"
+    if [[ -f "$state_file" ]]; then
+        state_ec="$(jq -r '.ec // empty' "$state_file" 2>/dev/null || true)"
+    fi
     case "$PROFILE" in
-        power-saver) acpi_profile="quiet" ;;
+        power-saver)
+            # Preservar Eco/Quiet já ativos; senão preferir o último EC salvo
+            if [[ "$current" == "low-power" || "$current" == "quiet" ]]; then
+                acpi_profile="$current"
+            elif [[ "$state_ec" == "low-power" || "$state_ec" == "quiet" ]]; then
+                acpi_profile="$state_ec"
+            else
+                acpi_profile="quiet"
+            fi
+            ;;
         balanced)    acpi_profile="balanced" ;;
         performance) acpi_profile="performance" ;;
         *)           acpi_profile="performance" ;;
     esac
-    current="$(tr -d '[:space:]' </sys/firmware/acpi/platform_profile 2>/dev/null || true)"
     if [[ "$current" != "$acpi_profile" ]] \
         && grep -qw "$acpi_profile" /sys/firmware/acpi/platform_profile_choices 2>/dev/null; then
-        echo "$acpi_profile" | sudo tee /sys/firmware/acpi/platform_profile >/dev/null 2>&1 || true
+        if [[ -w /sys/firmware/acpi/platform_profile ]]; then
+            printf '%s\n' "$acpi_profile" >/sys/firmware/acpi/platform_profile 2>/dev/null || true
+        else
+            printf '%s\n' "$acpi_profile" | sudo -n tee /sys/firmware/acpi/platform_profile >/dev/null 2>&1 || true
+        fi
     fi
 fi
 

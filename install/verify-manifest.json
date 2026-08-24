@@ -21,7 +21,6 @@
             "greetd",
             "greetd-tuigreet",
             "uwsm",
-            "quickshell-git",
             "qt6-shadertools",
             "libpipewire",
             "libqalculate",
@@ -44,6 +43,8 @@
             "thunar-volman"
         ],
         "optional": [
+            "quickshell",
+            "quickshell-git",
             "sddm",
             "pipewire-jack",
             "caelestia-sddm-locklike-git",
@@ -51,7 +52,7 @@
             "spicetify-cli",
             "cursor-bin",
             "equibop-bin",
-            "zapzap",
+            "zapzap-pandora",
             "planify",
             "freedownloadmanager",
             "vlc",
@@ -97,7 +98,8 @@
             "cpu-x",
             "hydralauncher",
             "prismlauncher",
-            "orion-launcher"
+            "orion-launcher",
+            "perfectsense"
         ]
     },
     "files": {
@@ -106,6 +108,9 @@
             "~/.config/caelestia/shell.json",
             "~/.config/caelestia/hypr-user.lua",
             "~/.config/caelestia/hypr-vars.lua",
+            "~/.config/hypr/xdph.conf",
+            "~/.local/share/ZapZap/customizations/global/css/pandora-inferno.css",
+            "~/.local/share/ZapZap/customizations/global/js/pandora-inferno.js",
             "~/.config/fastfetch/config.jsonc",
             "~/.config/cava/config",
             "~/.config/fish/functions/fish_greeting.fish",
@@ -124,10 +129,36 @@
             "~/.local/share/icons/hicolor/256x256/apps/io.hydralauncher.Hydra.png",
             "~/.local/bin/orion-launcher",
             "~/.local/share/applications/org.orionbedrock.OrionLauncher.desktop",
-            "~/.local/share/icons/hicolor/256x256/apps/org.orionbedrock.OrionLauncher.png"
+            "~/.local/share/icons/hicolor/256x256/apps/org.orionbedrock.OrionLauncher.png",
+            "~/.local/bin/perfectsense",
+            "/usr/local/bin/pandora-sysfs-write",
+            "/etc/sudoers.d/pandora-perfectsense",
+            "/etc/xdg/quickshell/caelestia/services/PerfectSense.qml",
+            "/etc/xdg/quickshell/caelestia/modules/dashboard/PerfectSense.qml",
+            "~/DATA"
         ]
     },
     "file_contains": [
+        {
+            "path": "~/.local/share/ZapZap/customizations/global/css/pandora-inferno.css",
+            "pattern": "--WDS-accent: #cc3333",
+            "label": "ZapZap CSS Inferno (accent vermelho)"
+        },
+        {
+            "path": "~/.config/ZapZap/ZapZap.conf",
+            "pattern": "global\\css\\enabled=true",
+            "label": "ZapZap CSS custom habilitado"
+        },
+        {
+            "path": "~/.config/caelestia/hypr-user.lua",
+            "pattern": "no_hardware_cursors",
+            "label": "software cursor p/ screen share (NVIDIA)"
+        },
+        {
+            "path": "~/.config/hypr/xdph.conf",
+            "pattern": "cursor_mode = 2",
+            "label": "XDPH cursor embedded no screen share"
+        },
         {
             "path": "~/.config/caelestia/hypr-user.lua",
             "pattern": "kb_layout",
@@ -142,6 +173,11 @@
             "path": "~/.config/caelestia/hypr-vars.lua",
             "pattern": "SUPER + G",
             "label": "Super+G Spotify/Spicetify"
+        },
+        {
+            "path": "~/.config/caelestia/shell.json",
+            "pattern": "\"showPerfectSense\": true",
+            "label": "dashboard tab PerfectSense habilitado"
         },
         {
             "path": "~/.config/caelestia/shell.json",
@@ -189,9 +225,12 @@
     },
     "systemd_user": {
         "required": [
-            "pandora-gpu-profile.timer"
+            "pandora-gpu-profile.timer",
+            "pandora-equibop-ss-audio-guard.service"
         ],
-        "optional": []
+        "optional": [
+            "pandora-fan-curve.service"
+        ]
     },
     "greetd": {
         "command": "start-hyprland",

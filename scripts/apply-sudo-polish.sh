@@ -19,8 +19,13 @@ if [[ -d /opt/spotify ]]; then
 fi
 
 if command -v spicetify &>/dev/null; then
-    spicetify config current_theme caelestia color_scheme caelestia custom_apps marketplace || true
-    spicetify backup apply || spicetify apply || warn "spicetify apply ainda falhou"
+    # Preferência: overlay Inferno Pandora (preto/vermelho/branco)
+    if declare -F deploy_spicetify_inferno &>/dev/null; then
+        deploy_spicetify_inferno || warn "deploy_spicetify_inferno falhou"
+    else
+        spicetify config current_theme caelestia color_scheme caelestia custom_apps marketplace || true
+        spicetify backup apply || spicetify apply || warn "spicetify apply ainda falhou"
+    fi
 fi
 
 log "Instalando Hydra Launcher (.desktop + ícone)..."

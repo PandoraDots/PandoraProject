@@ -72,8 +72,105 @@ pandora_shell_qsconf() {
 }
 
 pandora_shell_ready() {
-    # qs (quickshell-git) sozinho não basta — precisa do shell.qml do caelestia-shell
+    # qs (quickshell-git ou quickshell do repo) sozinho não basta — precisa do shell.qml
     command -v qs &>/dev/null && pandora_shell_qsconf &>/dev/null
+}
+
+# Garante Quickshell do Caelestia — nunca noctalia-qs (CachyOS Provides: quickshell-git).
+ensure_pandora_quickshell() {
+    ensure_paru
+
+    if pacman -Q noctalia-qs &>/dev/null; then
+        warn "noctalia-qs detectado — incompatível com Caelestia; removendo..."
+        sudo pacman -R --noconfirm noctalia-qs || die "Remova noctalia-qs manualmente e reinstale quickshell"
+    fi
+
+    if pacman -Q quickshell-git &>/dev/null || pacman -Q quickshell &>/dev/null; then
+        log "Quickshell OK: $(pacman -Q quickshell-git 2>/dev/null || pacman -Q quickshell)"
+        command -v qs &>/dev/null || die "qs ausente após quickshell instalado"
+        return 0
+    fi
+
+    # Preferir pacote oficial do repo (não o Provides do noctalia-qs).
+    if pkg_in_repos quickshell; then
+        log "Instalando quickshell (repos) — evitando noctalia-qs"
+        sudo pacman -S --needed --noconfirm quickshell || die "Falha ao instalar quickshell"
+    elif pkg_in_aur quickshell-git; then
+        log "Instalando quickshell-git (AUR)"
+        aur_install_one quickshell-git || die "Falha ao instalar quickshell-git"
+    else
+        die "Nem quickshell (repos) nem quickshell-git (AUR) disponíveis"
+    fi
+
+    command -v qs &>/dev/null || die "qs não encontrado após instalar Quickshell"
+}
+
+# Stamp de ABI/runtime: Hyprland/Aquamarine/libcava/qs + revs dos forks.
+# Se mudar (ex.: 0.55→0.56), o shell precisa ser recompilado mesmo com shell.qml presente.
+pandora_runtime_stamp_path() {
+    printf '%s' "${PANDORA_STATE}/runtime.stamp"
+}
+
+pandora_pkg_qv() {
+    local pkg="$1"
+    pacman -Q "$pkg" 2>/dev/null || printf '%s missing\n' "$pkg"
+}
+
+pandora_repo_rev() {
+    local name="$1"
+    local dir=""
+    if [[ -d "$PANDORA_ROOT/../$name/.git" ]]; then
+        dir="$PANDORA_ROOT/../$name"
+    elif [[ -d "$PANDORA_BUILD/$name/.git" ]]; then
+        dir="$PANDORA_BUILD/$name"
+    else
+        printf '%s unavailable\n' "$name"
+        return 0
+    fi
+    printf '%s %s\n' "$name" "$(git -C "$dir" rev-parse HEAD 2>/dev/null || echo unknown)"
+}
+
+pandora_runtime_stamp() {
+    pandora_pkg_qv hyprland
+    pandora_pkg_qv aquamarine
+    pandora_pkg_qv hyprutils
+    pandora_pkg_qv xdg-desktop-portal-hyprland
+    pandora_pkg_qv libcava
+    pandora_pkg_qv cava
+    pandora_pkg_qv quickshell-git
+    pandora_pkg_qv quickshell
+    pandora_pkg_qv foot
+    pandora_repo_rev cli
+    pandora_repo_rev shell
+    pandora_repo_rev caelestia
+}
+
+pandora_runtime_changed() {
+    local stamp path
+    path="$(pandora_runtime_stamp_path)"
+    stamp="$(pandora_runtime_stamp)"
+    [[ ! -f "$path" ]] && return 0
+    [[ "$(<"$path")" != "$stamp" ]]
+}
+
+save_pandora_runtime_stamp() {
+    mkdir -p "$PANDORA_STATE"
+    pandora_runtime_stamp >"$(pandora_runtime_stamp_path)"
+    log "Runtime stamp salvo: $(pandora_runtime_stamp_path)"
+}
+
+# Hyprland mínimo para hl.dsp (dashboard, binds Pandora).
+# 0.56.2+ corrige cursor em captura de janela; Pandora testa ≥0.56.0.
+pandora_hyprland_min_version() {
+    printf '%s' "0.56.0"
+}
+
+pandora_hyprland_version_ok() {
+    local ver min
+    ver="$(pacman -Q hyprland 2>/dev/null | awk '{print $2}' | sed 's/-.*//;s/\.arch.*//;s/\.cachyos.*//')"
+    min="$(pandora_hyprland_min_version)"
+    [[ -n "$ver" ]] || return 1
+    printf '%s\n%s\n' "$min" "$ver" | sort -V | head -1 | grep -qx "$min"
 }
 
 caelestia_dots_ready() {
@@ -465,6 +562,12 @@ deploy_overlays() {
             log "Overlay: $f -> $dest/$f"
         fi
     done
+    # XDPH: cursor embutido no screen share (Equibop/Discord)
+    if [[ -f "$src/hypr/xdph.conf" ]]; then
+        mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+        cp "$src/hypr/xdph.conf" "${XDG_CONFIG_HOME:-$HOME/.config}/hypr/xdph.conf"
+        log "Overlay: hypr/xdph.conf (cursor_mode=embedded)"
+    fi
     if [[ -f "$src/cava/config" ]]; then
         mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/cava"
         cp "$src/cava/config" "${XDG_CONFIG_HOME:-$HOME/.config}/cava/config"
@@ -492,6 +595,164 @@ deploy_overlays() {
     deploy_systemd_units
     deploy_user_icon
     deploy_wallpaper_qml
+    deploy_zapzap_theme
+    deploy_spicetify_inferno
+}
+
+# Spicetify Inferno: preto / vermelho / branco (mata verde Spotify residual).
+deploy_spicetify_inferno() {
+    local src="$PANDORA_ROOT/overlays/spicetify/Themes/caelestia"
+    local dest="${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/Themes/caelestia"
+    local css_src="$src/user.css"
+    local color_src="$src/color.ini"
+
+    [[ -f "$css_src" ]] || {
+        warn "deploy_spicetify: user.css ausente ($css_src)"
+        return 1
+    }
+
+    mkdir -p "$dest"
+    cp -f "$css_src" "$dest/user.css"
+    [[ -f "$color_src" ]] && cp -f "$color_src" "$dest/color.ini"
+
+    # Mantém fonte caelestia alinhada (install dots não reverte ao verde)
+    if [[ -d "$HOME/caelestia/spicetify/Themes/caelestia" ]]; then
+        cp -f "$css_src" "$HOME/caelestia/spicetify/Themes/caelestia/user.css"
+        [[ -f "$color_src" ]] && cp -f "$color_src" "$HOME/caelestia/spicetify/Themes/caelestia/color.ini"
+    fi
+
+    if ! command -v spicetify &>/dev/null; then
+        warn "deploy_spicetify: spicetify-cli ausente — só arquivos copiados"
+        return 0
+    fi
+    if [[ ! -d /opt/spotify ]]; then
+        warn "deploy_spicetify: /opt/spotify ausente — só arquivos copiados"
+        return 0
+    fi
+
+    # Spicetify precisa escrever em /opt/spotify
+    if [[ ! -w /opt/spotify/Apps ]]; then
+        sudo chmod a+wr /opt/spotify 2>/dev/null || true
+        sudo chmod a+wr -R /opt/spotify/Apps 2>/dev/null || true
+    fi
+
+    spicetify config current_theme caelestia color_scheme caelestia 2>/dev/null || true
+    # Após update do Spotify, "apply" falha com mismatch — usa backup apply
+    if spicetify backup apply 2>/dev/null || spicetify apply 2>/dev/null; then
+        log "Overlay: Spicetify Inferno (preto/vermelho/branco) aplicado"
+    else
+        warn "spicetify apply falhou — rode: sudo chmod a+wr -R /opt/spotify && spicetify backup apply"
+        return 1
+    fi
+}
+
+# Tema Inferno no ZapZap (CSS/JS WA Web + conf + launcher Qt vermelho).
+deploy_zapzap_theme() {
+    local src="$PANDORA_ROOT/overlays/zapzap"
+    local css_src="$src/customizations/global/css/pandora-inferno.css"
+    local js_src="$src/customizations/global/js/pandora-inferno.js"
+    # Fallback from installed zapzap-pandora package
+    [[ -f "$css_src" ]] || css_src="/usr/share/zapzap-pandora/pandora-inferno.css"
+    [[ -f "$js_src" ]] || js_src="/usr/share/zapzap-pandora/pandora-inferno.js"
+    local data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/ZapZap"
+    local css_dir="$data_dir/customizations/global/css"
+    local js_dir="$data_dir/customizations/global/js"
+    local conf="${XDG_CONFIG_HOME:-$HOME/.config}/ZapZap/ZapZap.conf"
+    local desktop_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
+    local desktop_src="$src/com.rtosta.zapzap.desktop"
+    local launcher="$PANDORA_ROOT/scripts/zapzap-pandora"
+
+    [[ -f "$css_src" ]] || {
+        warn "deploy_zapzap: CSS ausente ($css_src)"
+        return 1
+    }
+
+    mkdir -p "$css_dir" "$js_dir" "$(dirname "$conf")" "$desktop_dir"
+    cp "$css_src" "$css_dir/pandora-inferno.css"
+    [[ -f "$js_src" ]] && cp "$js_src" "$js_dir/pandora-inferno.js"
+    # Evita custom.css vazio/conflitante sobrescrever prioridade visual
+    if [[ -f "$css_dir/custom.css" ]] && [[ ! -s "$css_dir/custom.css" ]]; then
+        rm -f "$css_dir/custom.css"
+    fi
+    chmod +x "$launcher" 2>/dev/null || true
+
+    if [[ -f "$desktop_src" ]]; then
+        sed "s|__PANDORA_ROOT__|$PANDORA_ROOT|g" "$desktop_src" \
+            >"$desktop_dir/com.rtosta.zapzap.desktop"
+        update-desktop-database "$desktop_dir" 2>/dev/null || true
+    fi
+
+    # QSettings (org=ZapZap, app=ZapZap): habilita CSS + JS + dark
+    if python3 - <<'PY'
+from PyQt6.QtCore import QSettings
+
+s = QSettings("ZapZap", "ZapZap")
+s.setValue("custom/global/css/enabled", True)
+s.setValue("custom/global/js/enabled", True)
+s.setValue("system/theme", "dark")
+
+def clean_disabled(key: str, keep_name: str) -> None:
+    disabled = s.value(key, [])
+    if disabled is None:
+        disabled = []
+    if isinstance(disabled, str):
+        disabled = [disabled] if disabled else []
+    disabled = [x for x in disabled if x and x != keep_name]
+    s.setValue(key, disabled)
+
+clean_disabled("custom/global/css/disabled_files", "pandora-inferno.css")
+clean_disabled("custom/global/js/disabled_files", "pandora-inferno.js")
+s.sync()
+print("ok")
+PY
+    then
+        log "Overlay: ZapZap Inferno (CSS+JS) + theme=dark"
+    else
+        mkdir -p "$(dirname "$conf")"
+        touch "$conf"
+        if grep -q '^\[custom\]' "$conf" 2>/dev/null; then
+            grep -q 'global\\css\\enabled=' "$conf" \
+                && sed -i 's|global\\css\\enabled=.*|global\\css\\enabled=true|' "$conf" \
+                || sed -i '/^\[custom\]/a global\\css\\enabled=true' "$conf"
+            grep -q 'global\\js\\enabled=' "$conf" \
+                && sed -i 's|global\\js\\enabled=.*|global\\js\\enabled=true|' "$conf" \
+                || sed -i '/^\[custom\]/a global\\js\\enabled=true' "$conf"
+        else
+            printf '\n[custom]\nglobal\\css\\enabled=true\nglobal\\js\\enabled=true\n' >>"$conf"
+        fi
+        if grep -q '^\[system\]' "$conf" 2>/dev/null; then
+            grep -q '^theme=' "$conf" \
+                && sed -i 's|^theme=.*|theme=dark|' "$conf" \
+                || sed -i '/^\[system\]/a theme=dark' "$conf"
+        else
+            printf '\n[system]\ntheme=dark\n' >>"$conf"
+        fi
+        warn "deploy_zapzap: PyQt6 indisponível — conf editado via sed"
+        log "Overlay: ZapZap Inferno (fallback conf)"
+    fi
+}
+
+# Build/install ZapZap from Pandora packages/zapzap-pandora (Inferno Qt palette).
+install_zapzap_pandora() {
+    local pkgdir="$PANDORA_ROOT/packages/zapzap-pandora"
+    local build="$pkgdir/build.sh"
+    [[ -x "$build" ]] || chmod +x "$build"
+
+    if pacman -Q zapzap-pandora &>/dev/null; then
+        local ver
+        ver="$(pacman -Q zapzap-pandora | awk '{print $2}')"
+        log "zapzap-pandora já instalado ($ver) — só redeploy do tema"
+        deploy_zapzap_theme || warn "deploy_zapzap_theme falhou"
+        return 0
+    fi
+
+    log "Compilando zapzap-pandora (fonte upstream + patches Inferno)..."
+    bash "$build" || {
+        warn "build zapzap-pandora falhou — tentando zapzap AUR + tema"
+        pacman_install zapzap || true
+        deploy_zapzap_theme || true
+        return 1
+    }
 }
 
 # Aplica cores do scheme.json no cava (enableCava). Fallback: overlay vermelho já copiado.
@@ -1020,10 +1281,22 @@ deploy_systemd_units() {
     if [[ -f "$src/pandora-gpu-profile.timer" ]]; then
         cp "$src/pandora-gpu-profile.timer" "$unit_dir/pandora-gpu-profile.timer"
     fi
+    if [[ -f "$src/pandora-equibop-ss-audio-guard.service" ]]; then
+        sed "s|%h/PandoraProject|$PANDORA_ROOT|g" "$src/pandora-equibop-ss-audio-guard.service" \
+            >"$unit_dir/pandora-equibop-ss-audio-guard.service"
+        chmod +x "$PANDORA_ROOT/scripts/equibop-ss-audio-guard.sh" 2>/dev/null || true
+    fi
+    if [[ -f "$src/pandora-fan-curve.service" ]]; then
+        sed "s|%h/PandoraProject|$PANDORA_ROOT|g" "$src/pandora-fan-curve.service" \
+            >"$unit_dir/pandora-fan-curve.service"
+        chmod +x "$PANDORA_ROOT/scripts/perfectsense-fan-curve.sh" 2>/dev/null || true
+    fi
     systemctl --user daemon-reload 2>/dev/null || true
     # Path observa o mesmo sysfs que o script escreve → loop; preferir timer
     systemctl --user disable --now pandora-gpu-profile.path 2>/dev/null || true
     systemctl --user enable --now pandora-gpu-profile.timer 2>/dev/null || true
+    systemctl --user enable --now pandora-equibop-ss-audio-guard.service 2>/dev/null || true
+    systemctl --user enable --now pandora-fan-curve.service 2>/dev/null || true
 }
 
 link_wallpapers() {
@@ -1147,13 +1420,18 @@ pacman_install() {
 }
 
 # pipewire-jack conflita com jack2 (comum em ISOs CachyOS/Arch).
+# Caelestia dots ≥ ago/2026 usa pwvucontrol como app de áudio padrão.
 install_audio_stack() {
     local -a pkgs=(
         pipewire pipewire-pulse pipewire-audio pipewire-alsa
-        wireplumber pavucontrol
+        wireplumber pwvucontrol
     )
 
     pacman_install "${pkgs[@]}"
+
+    if ! pacman -Q pwvucontrol &>/dev/null; then
+        pacman_install pavucontrol || warn "Nem pwvucontrol nem pavucontrol instalados"
+    fi
 
     if pacman -Qi pipewire-jack &>/dev/null; then
         log "pipewire-jack já instalado"
@@ -1220,6 +1498,7 @@ pandora_export_helpers() {
         deploy_overlays deploy_user_icon patch_cli_json configure_keyboard_layout
         deploy_sddm_sudoers sync_sddm_theme deploy_systemd_units link_wallpapers
         deploy_wallpaper_qml deploy_pandora_sddm_conf deploy_greetd_conf deploy_greetd_pam
+        deploy_zapzap_theme install_zapzap_pandora deploy_spicetify_inferno
         enable_greetd_disable_sddm prompt_pandora_login ensure_pandora_login_user
         sync_cava_from_scheme
         install_hyprland_session install_hyprland_uwsm_session install_caelestia_sddm_fork
@@ -1228,6 +1507,10 @@ pandora_export_helpers() {
         pandora_pkg_alias pkg_in_repos pkg_in_aur pkg_available
         skip_if_ready pandora_cli_ready pandora_shell_ready caelestia_dots_ready
         pandora_overlays_ready scheme_inferno_ready hydra_ready orion_ready user_unit_enabled
+        pandora_runtime_stamp pandora_runtime_changed save_pandora_runtime_stamp
+        pandora_hyprland_version_ok pandora_hyprland_min_version
+        pandora_pkg_qv pandora_repo_rev pandora_runtime_stamp_path
+        ensure_pandora_quickshell
         install_hydra_launcher find_hydra_binary find_hydra_desktop
         hydra_desktop_path hydra_icon_path hydra_extract_icon
         install_orion_binary install_orion_launcher find_orion_binary

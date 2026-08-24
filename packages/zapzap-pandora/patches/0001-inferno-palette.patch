@@ -1,0 +1,70 @@
+--- a/zapzap/core/theme/theme_manager.py
++++ b/zapzap/core/theme/theme_manager.py
+@@ -48,25 +48,25 @@
+         "alternate_base": "#eae9e7",
+         "button": "#f7f5f3",
+         "button_text": "#1d1f1f",
+-        "highlight": "#21c063",
++        "highlight": "#cc3333",
+         "highlighted_text": "#ffffff",
+         "mid": "#D0D4D8",
+         "placeholder_text": "#66717A",
+         "bright_text": "#e01b24",
+ 
+         # Semantic colors
+-        "accent": "#21c063",
++        "accent": "#cc3333",
+         "accent_text": "#ffffff",
+-        "accent_hover": "#1db356",
+-        "accent_border": "#1aa34e",
++        "accent_hover": "#b30000",
++        "accent_border": "#991111",
+ 
+-        "success": "#21c063",
++        "success": "#cc3333",
+         "success_text": "#ffffff",
+-        "success_hover": "#1db356",
+-        "success_border": "#1aa34e",
++        "success_hover": "#b30000",
++        "success_border": "#991111",
+ 
+         # Account activity, intentionally distinct from the selection green.
+-        "activity": "#007C83",
++        "activity": "#ff8866",
+ 
+         "warning": "#cd9309",
+         "warning_text": "#ffffff",
+@@ -87,25 +87,25 @@
+         "alternate_base": "#292a2a",
+         "button": "#1d1f1f",
+         "button_text": "#E1E1E1",
+-        "highlight": "#21c063",
++        "highlight": "#cc3333",
+         "highlighted_text": "#ffffff",
+         "mid": "#444444",
+         "placeholder_text": "#A6AEB6",
+         "bright_text": "#ff6b6b",
+ 
+         # Semantic colors
+-        "accent": "#21c063",
++        "accent": "#cc3333",
+         "accent_text": "#ffffff",
+-        "accent_hover": "#25d366",
+-        "accent_border": "#1db356",
++        "accent_hover": "#e65555",
++        "accent_border": "#b30000",
+ 
+-        "success": "#21c063",
++        "success": "#cc3333",
+         "success_text": "#ffffff",
+-        "success_hover": "#25d366",
+-        "success_border": "#1db356",
++        "success_hover": "#e65555",
++        "success_border": "#b30000",
+ 
+         # Account activity, intentionally distinct from the selection green.
+-        "activity": "#2DD4BF",
++        "activity": "#ff8866",
+ 
+         "warning": "#e5a50a",
+         "warning_text": "#1d1f1f",

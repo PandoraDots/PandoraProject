@@ -35,6 +35,60 @@ if ! skip_if_ready "GPU profile inicial" bash -c "
     run_step "GPU profile inicial" postinstall_gpu_profile
 fi
 
+# PerfectSense (CLI + perms + fan curve) — sempre, independente do skip do GPU timer
+postinstall_perfectsense() {
+    chmod +x "$PANDORA_ROOT/scripts/perfectsense" \
+        "$PANDORA_ROOT/scripts/perfectsense-fan-curve.sh" \
+        "$PANDORA_ROOT/scripts/setup-perfectsense-perms.sh" \
+        "$PANDORA_ROOT/scripts/pandora-sysfs-write" \
+        "$PANDORA_ROOT/scripts/sync-shell-runtime.sh" \
+        "$PANDORA_ROOT/scripts/run-deploy-perfectsense-ui.sh" \
+        "$PANDORA_ROOT/scripts/start-caelestia-shell.sh" \
+        "$PANDORA_ROOT/scripts/restart-caelestia-shell.sh" \
+        "$PANDORA_ROOT/scripts/setup-data-ssd.sh" 2>/dev/null || true
+    deploy_systemd_units
+    bash "$PANDORA_ROOT/scripts/setup-perfectsense-perms.sh" 2>/dev/null \
+        || warn "PerfectSense perms — rode: scripts/setup-perfectsense-perms.sh"
+    mkdir -p "${XDG_BIN_HOME:-$HOME/.local/bin}"
+    ln -sfn "$PANDORA_ROOT/scripts/perfectsense" "${XDG_BIN_HOME:-$HOME/.local/bin}/perfectsense"
+    systemctl --user enable --now pandora-fan-curve.service 2>/dev/null \
+        || warn "fan-curve unit — verifique overlays/systemd/pandora-fan-curve.service"
+}
+
+run_step "PerfectSense (CLI + fan curve + perms)" postinstall_perfectsense
+
+# Sync QML PerfectSense/Monitors do fork shell → runtime (/etc ou ~/.config)
+postinstall_sync_shell_ui() {
+    local shell_src="${PANDORA_SHELL:-$HOME/shell}"
+    [[ -d "$shell_src" ]] || {
+        warn "fork shell ausente ($shell_src) — pule sync UI PerfectSense"
+        return 0
+    }
+    if [[ -x "$PANDORA_ROOT/scripts/run-deploy-perfectsense-ui.sh" ]]; then
+        PANDORA_SHELL="$shell_src" "$PANDORA_ROOT/scripts/run-deploy-perfectsense-ui.sh" "$shell_src" \
+            || warn "sync PerfectSense UI falhou — rode: scripts/run-deploy-perfectsense-ui.sh"
+    fi
+}
+
+run_step "Sync PerfectSense UI (shell → qs runtime)" postinstall_sync_shell_ui
+
+# SSD DATA (Kingston / LABEL=DATA) — opcional; no-op se disco ausente
+postinstall_data_ssd() {
+    if [[ -x "$PANDORA_ROOT/scripts/setup-data-ssd.sh" ]]; then
+        if command -v pkexec >/dev/null 2>&1; then
+            pkexec "$PANDORA_ROOT/scripts/setup-data-ssd.sh" \
+                || warn "DATA SSD — rode: sudo scripts/setup-data-ssd.sh"
+        else
+            sudo "$PANDORA_ROOT/scripts/setup-data-ssd.sh" \
+                || warn "DATA SSD — rode: sudo scripts/setup-data-ssd.sh"
+        fi
+    fi
+}
+
+if blkid -L DATA >/dev/null 2>&1 || blkid -U dfd5686c-0b7d-4c4f-9151-104bff20f8c9 >/dev/null 2>&1; then
+    run_step "SSD DATA → /mnt/data + ~/DATA" postinstall_data_ssd
+fi
+
 run_step "Ícone de usuário (~/.face)" deploy_user_icon
 
 postinstall_user_dirs() {
@@ -90,6 +144,12 @@ fi
 run_step "Iniciar serviços user" bash -c '
     if ! command -v qs >/dev/null || ! pandora_shell_qsconf >/dev/null 2>&1; then
         warn "caelestia shell não instalado (rode install/30-caelestia-build.sh)"
+    elif [[ -x "'"$PANDORA_ROOT"'/scripts/start-caelestia-shell.sh" ]]; then
+        if "'"$PANDORA_ROOT"'/scripts/start-caelestia-shell.sh" >/dev/null 2>&1; then
+            log "caelestia shell iniciado (NVIDIA env)"
+        else
+            warn "start-caelestia-shell falhou — veja: caelestia shell -l"
+        fi
     elif caelestia shell -d >/dev/null 2>&1; then
         log "caelestia shell iniciado"
     else
@@ -98,32 +158,19 @@ run_step "Iniciar serviços user" bash -c '
 '
 
 postinstall_spicetify() {
-    command -v spicetify &>/dev/null || {
-        warn "spicetify-cli ausente — pulando"
-        return 0
+    deploy_spicetify_inferno || {
+        warn "deploy_spicetify_inferno falhou — tentando apply legado"
+        command -v spicetify &>/dev/null || return 0
+        command -v spotify &>/dev/null || pacman -Qi spotify &>/dev/null || return 0
+        if [[ -d /opt/spotify ]]; then
+            sudo chmod a+wr /opt/spotify 2>/dev/null || true
+            sudo chmod a+wr /opt/spotify/Apps -R 2>/dev/null || true
+        fi
+        spicetify config current_theme caelestia color_scheme caelestia custom_apps marketplace 2>/dev/null || true
+        spicetify backup apply 2>/dev/null || spicetify apply 2>/dev/null || true
     }
-    command -v spotify &>/dev/null || pacman -Qi spotify &>/dev/null || {
-        warn "spotify ausente — pulando spicetify apply"
-        return 0
-    }
-
-    # Spicetify precisa escrever em /opt/spotify
-    if [[ -d /opt/spotify ]]; then
-        sudo chmod a+wr /opt/spotify 2>/dev/null || true
-        sudo chmod a+wr /opt/spotify/Apps -R 2>/dev/null || true
-    fi
-
-    spicetify config current_theme caelestia color_scheme caelestia custom_apps marketplace 2>/dev/null || true
-    if ! spicetify backup apply 2>/dev/null; then
-        spicetify apply 2>/dev/null || warn "spicetify apply falhou — rode: sudo chmod a+wr /opt/spotify && spicetify backup apply"
-    fi
 }
 
-if ! skip_if_ready "Spicetify tema caelestia" bash -c '
-    grep -q "^current_theme[ =]*caelestia" "${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/config-xpui.ini" 2>/dev/null \
-        && grep -qE "^version[ =]+.+" "${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/config-xpui.ini" 2>/dev/null
-'; then
-    run_step "Spicetify tema caelestia" postinstall_spicetify
-fi
+run_step "Spicetify Inferno (preto/vermelho/branco)" postinstall_spicetify
 
 log "Pós-instalação concluída."

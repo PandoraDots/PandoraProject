@@ -1,0 +1,509 @@
+#!/usr/bin/env bash
+# PerfectSense — controle nativo do nekro_sense / Predator EC (sem GUI dedicada).
+# Uso: perfectsense <comando> [args...]
+set -euo pipefail
+
+PANDORA_ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/pandora"
+STATE_FILE="$STATE_DIR/perfectsense.json"
+SYSFS_BASE="/sys/module/nekro_sense/drivers/platform:acer-wmi/acer-wmi"
+[[ -d "$SYSFS_BASE" ]] || SYSFS_BASE="/sys/devices/platform/acer-wmi"
+PLATFORM_PROFILE="/sys/firmware/acpi/platform_profile"
+PLATFORM_CHOICES="/sys/firmware/acpi/platform_profile_choices"
+
+SENSE="$SYSFS_BASE/predator_sense"
+[[ -d "$SENSE" ]] || SENSE="$SYSFS_BASE/nitro_sense"
+KB="$SYSFS_BASE/four_zoned_kb"
+# Preferir caminho curto (mesmo inode; evita issues com ':')
+LOGO="/sys/devices/platform/acer-wmi/back_logo/color"
+[[ -e "$LOGO" ]] || LOGO="$SYSFS_BASE/back_logo/color"
+
+MONITOR_OUT="eDP-1"
+# Painel só expõe 2560x1600@60 e @240 — “1080p” = scale ~1.333 (lógico ≈1920×1200)
+MONITOR_MODE_60="2560x1600@60"
+MONITOR_MODE_240="2560x1600@240"
+MONITOR_SCALE_NATIVE="1.25"
+MONITOR_SCALE_FHD="1.333333"
+MONITOR_NATIVE="2560x1600@240" # legado
+MONITOR_ECO="2560x1600@60"    # legado
+MONITOR_SCALE="1.25"          # legado
+
+DEFAULT_RGB="ff0000,ff0000,ff0000,ff0000,60"
+DEFAULT_LOGO="ff0000,70,1"
+
+mkdir -p "$STATE_DIR"
+
+json_get() {
+    local key="$1" default="${2:-}"
+    [[ -f "$STATE_FILE" ]] || { printf '%s' "$default"; return; }
+    jq -r --arg k "$key" --arg d "$default" '.[$k] // $d' "$STATE_FILE" 2>/dev/null || printf '%s' "$default"
+}
+
+json_set() {
+    local tmp
+    tmp="$(mktemp)"
+    if [[ -f "$STATE_FILE" ]]; then
+        jq -c --argjson patch "$1" '. * $patch' "$STATE_FILE" >"$tmp"
+    else
+        printf '%s\n' "$1" >"$tmp"
+    fi
+    mv -f "$tmp" "$STATE_FILE"
+}
+
+read_text() {
+    local f="$1"
+    [[ -r "$f" ]] || { echo ""; return 1; }
+    tr -d '\n' <"$f" | sed 's/[[:space:]]*$//'
+}
+
+write_text() {
+    local f="$1" val="$2"
+    [[ -e "$f" ]] || return 1
+    if [[ -w "$f" ]]; then
+        # --foreground: não mata o process group do PerfectSense (SIGKILL 137)
+        if command -v timeout >/dev/null; then
+            timeout --foreground 2s tee "$f" >/dev/null <<<"$val" 2>/dev/null && return 0
+            # fallback se timeout falhar/estourar
+            printf '%s\n' "$val" >"$f" 2>/dev/null || return 1
+            return 0
+        fi
+        printf '%s\n' "$val" >"$f" || return 1
+        return 0
+    fi
+    if [[ -x /usr/local/bin/pandora-sysfs-write ]]; then
+        if command -v timeout >/dev/null; then
+            timeout --foreground 3s sudo -n /usr/local/bin/pandora-sysfs-write "$f" "$val" 2>/dev/null && return 0
+        else
+            sudo -n /usr/local/bin/pandora-sysfs-write "$f" "$val" 2>/dev/null && return 0
+        fi
+    fi
+    return 1
+}
+
+hypr_monitor() {
+    # legado: mode string + scale nativo
+    local mode="$1"
+    local scale="${2:-$MONITOR_SCALE_NATIVE}"
+    command -v hyprctl >/dev/null 2>&1 || return 0
+    local out="$MONITOR_OUT"
+    hyprctl -q eval "hl.monitor({ output = \"${out}\", mode = \"${mode}\", position = \"0x0\", scale = ${scale} })" 2>/dev/null \
+        || true
+}
+
+# Presets do eDP: fhd-60 | fhd-240 | native-60 | native-240
+preset_mode_scale() {
+    case "$1" in
+        fhd-60)     echo "$MONITOR_MODE_60 $MONITOR_SCALE_FHD" ;;
+        fhd-240)    echo "$MONITOR_MODE_240 $MONITOR_SCALE_FHD" ;;
+        native-60)  echo "$MONITOR_MODE_60 $MONITOR_SCALE_NATIVE" ;;
+        native-240) echo "$MONITOR_MODE_240 $MONITOR_SCALE_NATIVE" ;;
+        *) return 1 ;;
+    esac
+}
+
+hypr_monitor_preset() {
+    local preset="$1"
+    local ms mode scale
+    ms="$(preset_mode_scale "$preset")" || return 1
+    mode="${ms%% *}"
+    scale="${ms##* }"
+    hypr_monitor "$mode" "$scale"
+}
+
+hypr_monitor_custom() {
+    local out="$1" mode="$2" scale="${3:-1}"
+    command -v hyprctl >/dev/null 2>&1 || return 0
+    # mode: 1920x1080@144 ou 1920x1080@144Hz
+    mode="${mode%Hz}"
+    mode="${mode%hz}"
+    hyprctl -q eval "hl.monitor({ output = \"${out}\", mode = \"${mode}\", position = \"auto\", scale = ${scale} })" 2>/dev/null \
+        || true
+}
+
+hypr_anims() {
+    local on="$1"
+    command -v hyprctl >/dev/null 2>&1 || return 0
+    if [[ "$on" == "1" ]]; then
+        hyprctl -q eval 'hl.config({ animations = { enabled = true }, decoration = { blur = { enabled = true }, shadow = { enabled = true } } })' 2>/dev/null \
+            || true
+    else
+        hyprctl -q eval 'hl.config({ animations = { enabled = false }, decoration = { blur = { enabled = false }, shadow = { enabled = false } } })' 2>/dev/null \
+            || true
+    fi
+}
+
+# RGB do teclado pode bloquear no EC (D-state); nunca segurar o comando principal.
+kb_write_bg() {
+    local val="$1"
+    (
+        write_text "$KB/per_zone_mode" "$val" || true
+    ) >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+}
+
+lights_off() {
+    write_text "$LOGO" "000000,0,0" || true
+    kb_write_bg "000000,000000,000000,000000,0"
+}
+
+lights_restore() {
+    local rgb logo
+    rgb="$(json_get last_rgb "$DEFAULT_RGB")"
+    logo="$(json_get last_logo "$DEFAULT_LOGO")"
+    write_text "$LOGO" "$logo" || true
+    kb_write_bg "$rgb"
+}
+
+ppd_for_ec() {
+    case "$1" in
+        low-power|quiet) echo power-saver ;;
+        balanced) echo balanced ;;
+        balanced-performance|performance) echo performance ;;
+        *) echo balanced ;;
+    esac
+}
+
+label_for_ec() {
+    case "$1" in
+        low-power) echo Eco ;;
+        quiet) echo Quiet ;;
+        balanced) echo Balanced ;;
+        balanced-performance) echo Performance ;;
+        performance) echo Turbo ;;
+        *) echo "$1" ;;
+    esac
+}
+
+apply_mode_side_effects() {
+    local ec="$1"
+    case "$ec" in
+        low-power|quiet)
+            # Quiet/Eco: FHD-equiv @ 60Hz (scale ~1.333), sem anim/luz
+            hypr_monitor_preset "fhd-60"
+            hypr_anims 0
+            if [[ "$(json_get lights_dimmed 0)" != "1" ]]; then
+                local cur_rgb cur_logo
+                cur_rgb="$(read_text "$KB/per_zone_mode" 2>/dev/null || echo "$DEFAULT_RGB")"
+                cur_logo="$(read_text "$LOGO" 2>/dev/null || echo "$DEFAULT_LOGO")"
+                json_set "$(jq -nc --arg r "$cur_rgb" --arg l "$cur_logo" '{last_rgb:$r,last_logo:$l,lights_dimmed:1}')"
+            fi
+            lights_off
+            ;;
+        *)
+            # Restaura último preset do usuário (padrão nativo 240)
+            hypr_monitor_preset "$(json_get last_display_preset native-240)"
+            hypr_anims 1
+            if [[ "$(json_get lights_dimmed 0)" == "1" ]]; then
+                lights_restore
+                json_set '{"lights_dimmed":0}'
+            fi
+            ;;
+    esac
+}
+
+cmd_display() {
+    case "${1:-}" in
+        get|status|"")
+            jq -nc \
+                --arg preset "$(json_get last_display_preset native-240)" \
+                --arg quiet "fhd-60" \
+                '{last_preset:$preset, quiet_eco_preset:$quiet, presets:["fhd-60","fhd-240","native-60","native-240"]}'
+            ;;
+        preset)
+            local p="${2:?uso: display preset <fhd-60|fhd-240|native-60|native-240>}"
+            preset_mode_scale "$p" >/dev/null || { echo "preset inválido: $p" >&2; return 1; }
+            # Não gravar last_preset se Quiet/Eco forçou fhd-60 temporário? Gravar sim quando usuário escolhe.
+            json_set "$(jq -nc --arg p "$p" '{last_display_preset:$p}')"
+            hypr_monitor_preset "$p"
+            echo "$p"
+            ;;
+        cycle)
+            # Cicla os 4 presets do eDP (tab PerfectSense)
+            local order=(fhd-60 fhd-240 native-60 native-240)
+            local cur next i
+            cur="$(json_get last_display_preset native-240)"
+            # Se Quiet/Eco estiver ativo, o painel está em fhd-60 — ciclar a partir do last ou fhd-60
+            next="${order[0]}"
+            for i in "${!order[@]}"; do
+                if [[ "${order[$i]}" == "$cur" ]]; then
+                    next="${order[$(( (i + 1) % ${#order[@]} ))]}"
+                    break
+                fi
+            done
+            json_set "$(jq -nc --arg p "$next" '{last_display_preset:$p}')"
+            hypr_monitor_preset "$next"
+            echo "$next"
+            ;;
+        set)
+            # display set <output> <WxH@Hz> [scale]
+            local out="${2:?}" mode="${3:?}" scale="${4:-1}"
+            hypr_monitor_custom "$out" "$mode" "$scale"
+            echo "${out} ${mode} scale=${scale}"
+            ;;
+        *)
+            echo "uso: display get|preset <fhd-60|fhd-240|native-60|native-240>|cycle|set <output> <WxH@Hz> [scale]" >&2
+            return 1
+            ;;
+    esac
+}
+
+cmd_status() {
+    local ec ppd fans batt rgb logo cpu_t gpu_t cpu_f gpu_f
+    ec="$(read_text "$PLATFORM_PROFILE" 2>/dev/null || echo unknown)"
+    ppd="$(powerprofilesctl get 2>/dev/null || echo unknown)"
+    fans="$(read_text "$SENSE/fan_speed" 2>/dev/null || echo "")"
+    batt="$(read_text "$SENSE/battery_limiter" 2>/dev/null || echo "")"
+    rgb="$(read_text "$KB/per_zone_mode" 2>/dev/null || echo "")"
+    logo="$(read_text "$LOGO" 2>/dev/null || echo "")"
+    local hw=""
+    for d in /sys/class/hwmon/hwmon*; do
+        [[ -f "$d/name" ]] || continue
+        if [[ "$(cat "$d/name" 2>/dev/null)" == "acer" ]]; then
+            hw="$d"
+            break
+        fi
+    done
+    [[ -z "$hw" ]] && hw="$(find "$SYSFS_BASE" -type d -path '*/hwmon/hwmon*' 2>/dev/null | head -1)"
+    cpu_f=""; gpu_f=""; cpu_t=""; gpu_t=""
+    if [[ -n "$hw" ]]; then
+        cpu_f="$(read_text "$hw/fan1_input" 2>/dev/null || true)"
+        gpu_f="$(read_text "$hw/fan2_input" 2>/dev/null || true)"
+        cpu_t="$(read_text "$hw/temp1_input" 2>/dev/null || true)"
+        gpu_t="$(read_text "$hw/temp2_input" 2>/dev/null || true)"
+    fi
+    jq -nc \
+        --arg ec "$ec" \
+        --arg label "$(label_for_ec "$ec")" \
+        --arg ppd "$ppd" \
+        --arg fans "$fans" \
+        --arg batt "$batt" \
+        --arg rgb "$rgb" \
+        --arg logo "$logo" \
+        --arg usb "$(read_text "$SENSE/usb_charging" 2>/dev/null || true)" \
+        --arg lcd "$(read_text "$SENSE/lcd_override" 2>/dev/null || true)" \
+        --arg kbto "$(read_text "$SENSE/backlight_timeout" 2>/dev/null || true)" \
+        --arg boot "$(read_text "$SENSE/boot_animation_sound" 2>/dev/null || true)" \
+        --arg cal "$(read_text "$SENSE/battery_calibration" 2>/dev/null || true)" \
+        --arg cpu_f "${cpu_f:-}" --arg gpu_f "${gpu_f:-}" \
+        --arg cpu_t "${cpu_t:-}" --arg gpu_t "${gpu_t:-}" \
+        --arg choices "$(read_text "$PLATFORM_CHOICES" 2>/dev/null || true)" \
+        --argjson game_prev "$(jq -c '.game_mode_prev // null' "$STATE_FILE" 2>/dev/null || echo null)" \
+        --argjson curve_on "$([[ "$(json_get fan_curve_enabled 1)" == "1" ]] && echo true || echo false)" \
+        --argjson curve_manual "$([[ "$(json_get fan_curve_manual 0)" == "1" ]] && echo true || echo false)" \
+        --arg curve_last "$(json_get fan_curve_last "")" \
+        --arg display_preset "$(json_get last_display_preset native-240)" \
+        '{
+            ec:$ec, label:$label, ppd:$ppd, fans:$fans, battery_limiter:$batt,
+            rgb:$rgb, logo:$logo, usb_charging:$usb, lcd_override:$lcd,
+            backlight_timeout:$kbto, boot_animation_sound:$boot,
+            battery_calibration:$cal,
+            fans_rpm:{cpu:($cpu_f|tonumber? // null), gpu:($gpu_f|tonumber? // null)},
+            temps_mc:{cpu:($cpu_t|tonumber? // null), gpu:($gpu_t|tonumber? // null)},
+            choices:($choices|split(" ")|map(select(length>0))),
+            game_mode_prev:$game_prev,
+            fan_curve:{enabled:$curve_on, manual:$curve_manual, last:$curve_last},
+            display_preset:$display_preset
+        }'
+}
+
+cmd_mode_list() {
+    read_text "$PLATFORM_CHOICES" 2>/dev/null || echo "low-power quiet balanced balanced-performance performance"
+}
+
+cmd_mode_get() {
+    read_text "$PLATFORM_PROFILE"
+}
+
+cmd_mode_set() {
+    local ec="$1"
+    local choices
+    choices="$(cmd_mode_list)"
+    if ! grep -qw "$ec" <<<"$choices"; then
+        echo "modo inválido: $ec (disponíveis: $choices)" >&2
+        return 1
+    fi
+    write_text "$PLATFORM_PROFILE" "$ec" || {
+        echo "falha ao escrever platform_profile" >&2
+        return 1
+    }
+    local ppd
+    ppd="$(ppd_for_ec "$ec")"
+    command -v powerprofilesctl >/dev/null && powerprofilesctl set "$ppd" 2>/dev/null || true
+    apply_mode_side_effects "$ec"
+    json_set "$(jq -nc --arg e "$ec" '{ec:$e}')"
+    # Sync GPU env (sem reescrever ACPI — já setamos)
+    PANDORA_PERFECTSENSE=1 bash "$PANDORA_ROOT/scripts/gpu-profile.sh" 2>/dev/null || true
+    echo "$(label_for_ec "$ec")"
+}
+
+cmd_game_enter() {
+    local cur
+    cur="$(cmd_mode_get)"
+    json_set "$(jq -nc --arg c "$cur" '{game_mode_prev:$c}')"
+    cmd_mode_set performance
+}
+
+cmd_game_leave() {
+    local prev
+    prev="$(json_get game_mode_prev balanced)"
+    [[ -n "$prev" && "$prev" != "null" ]] || prev="balanced"
+    cmd_mode_set "$prev"
+    json_set '{"game_mode_prev":null}'
+}
+
+cmd_fan() {
+    case "${1:-}" in
+        get) read_text "$SENSE/fan_speed" ;;
+        auto)
+            # Modo automático: EC + curva userspace (só neste modo a curva atua)
+            json_set '{"fan_curve_manual":0,"fan_curve_enabled":1}'
+            write_text "$SENSE/fan_speed" "0,0"
+            ;;
+        set)
+            local cpu="${2:?}" gpu="${3:?}"
+            # 0,0 = automático (equivalente a fan auto). Qualquer outro valor = manual
+            # e a curva NÃO deve interferir.
+            if [[ "$cpu" == "0" && "$gpu" == "0" ]]; then
+                json_set '{"fan_curve_manual":0,"fan_curve_enabled":1}'
+                write_text "$SENSE/fan_speed" "0,0"
+            else
+                json_set '{"fan_curve_manual":1}'
+                write_text "$SENSE/fan_speed" "${cpu},${gpu}"
+            fi
+            ;;
+        curve)
+            case "${2:-}" in
+                on|enable|1)
+                    json_set '{"fan_curve_enabled":1,"fan_curve_manual":0}'
+                    write_text "$SENSE/fan_speed" "0,0" || true
+                    systemctl --user start pandora-fan-curve.service 2>/dev/null || true
+                    echo "fan curve: on (somente no modo automático)"
+                    ;;
+                off|disable|0)
+                    json_set '{"fan_curve_enabled":0}'
+                    # Se estava em auto (não-manual), devolve EC auto; se manual, não mexe no duty
+                    if [[ "$(json_get fan_curve_manual 0)" != "1" ]]; then
+                        write_text "$SENSE/fan_speed" "0,0" || true
+                    fi
+                    echo "fan curve: off"
+                    ;;
+                status|get|"")
+                    jq -nc \
+                        --arg enabled "$(json_get fan_curve_enabled 1)" \
+                        --arg manual "$(json_get fan_curve_manual 0)" \
+                        --arg last "$(json_get fan_curve_last "")" \
+                        --arg temp "$(json_get fan_curve_temp_c "")" \
+                        --arg tier "$(json_get fan_curve_tier "")" \
+                        --arg fans "$(read_text "$SENSE/fan_speed" 2>/dev/null || true)" \
+                        '{enabled:($enabled=="1"), manual:($manual=="1"), auto_mode:($manual!="1"), last:$last, temp_c:($temp|tonumber? // null), tier:($tier|tonumber? // null), fans:$fans}'
+                    ;;
+                *) echo "uso: fan curve on|off|status" >&2; return 1 ;;
+            esac
+            ;;
+        *) echo "uso: fan get|auto|set <cpu> <gpu>|curve on|off|status" >&2; return 1 ;;
+    esac
+}
+
+cmd_battery() {
+    case "${1:-}" in
+        get) read_text "$SENSE/battery_limiter" ;;
+        on) write_text "$SENSE/battery_limiter" "1" ;;
+        off) write_text "$SENSE/battery_limiter" "0" ;;
+        *) echo "uso: battery get|on|off" >&2; return 1 ;;
+    esac
+}
+
+cmd_rgb() {
+    case "${1:-}" in
+        get) read_text "$KB/per_zone_mode" ;;
+        set)
+            # rgb set z1 z2 z3 z4 brightness
+            local z1="${2:?}" z2="${3:?}" z3="${4:?}" z4="${5:?}" b="${6:-60}"
+            local val="${z1},${z2},${z3},${z4},${b}"
+            kb_write_bg "$val"
+            json_set "$(jq -nc --arg r "$val" '{last_rgb:$r,lights_dimmed:0}')"
+            ;;
+        off) lights_off; json_set '{"lights_dimmed":1}' ;;
+        *) echo "uso: rgb get|set <z1> <z2> <z3> <z4> [bri]|off" >&2; return 1 ;;
+    esac
+}
+
+cmd_logo() {
+    case "${1:-}" in
+        get) read_text "$LOGO" ;;
+        set)
+            local color="${2:?}" bri="${3:-70}" en="${4:-1}"
+            local val="${color},${bri},${en}"
+            write_text "$LOGO" "$val"
+            json_set "$(jq -nc --arg l "$val" '{last_logo:$l}')"
+            ;;
+        off) write_text "$LOGO" "000000,0,0" ;;
+        *) echo "uso: logo get|set <RRGGBB> [bri] [0|1]|off" >&2; return 1 ;;
+    esac
+}
+
+cmd_attr() {
+    # attr get|set <name> [value]  — predator_sense attrs
+    local op="${1:?}" name="${2:?}"
+    local path="$SENSE/$name"
+    case "$op" in
+        get) read_text "$path" ;;
+        set) write_text "$path" "${3:?}" ;;
+        *) return 1 ;;
+    esac
+}
+
+cmd_reset_lights() {
+    write_text "$SENSE/lighting_reset" "1" || true
+}
+
+usage() {
+    cat <<'EOF'
+perfectsense — Predator/nekro controles nativos Pandora
+
+  status
+  mode list|get|set <low-power|quiet|balanced|balanced-performance|performance>
+  display get|preset <fhd-60|fhd-240|native-60|native-240>|cycle|set <output> <WxH@Hz> [scale]
+  game enter|leave
+  fan get|auto|set <cpu%> <gpu%>|curve on|off|status
+  battery get|on|off
+  rgb get|set <z1> <z2> <z3> <z4> [bri]|off
+  logo get|set <RRGGBB> [bri] [en]|off
+  attr get|set <name> [value]
+  reset-lights
+EOF
+}
+
+main() {
+    local cmd="${1:-}"
+    shift || true
+    case "$cmd" in
+        status) cmd_status ;;
+        mode)
+            case "${1:-}" in
+                list) cmd_mode_list ;;
+                get) cmd_mode_get ;;
+                set) cmd_mode_set "${2:?}" ;;
+                *) usage; return 1 ;;
+            esac
+            ;;
+        display) cmd_display "$@" ;;
+        game)
+            case "${1:-}" in
+                enter) cmd_game_enter ;;
+                leave) cmd_game_leave ;;
+                *) return 1 ;;
+            esac
+            ;;
+        fan) cmd_fan "$@" ;;
+        battery) cmd_battery "$@" ;;
+        rgb) cmd_rgb "$@" ;;
+        logo) cmd_logo "$@" ;;
+        attr) cmd_attr "$@" ;;
+        reset-lights) cmd_reset_lights ;;
+        -h|--help|"") usage ;;
+        *) usage; return 1 ;;
+    esac
+}
+
+main "$@"

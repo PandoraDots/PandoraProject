@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""ZapZap com paleta Qt Inferno (accent vermelho) + main padrão."""
+from __future__ import annotations
+
+import sys
+
+
+def _patch_qt_palette() -> None:
+    from zapzap.core.theme.theme_manager import ThemeManager
+
+    dark = {
+        "window": "#0a0a0a",
+        "text": "#e8e0e0",
+        "base": "#121212",
+        "alternate_base": "#1a1212",
+        "button": "#121212",
+        "button_text": "#e8e0e0",
+        "highlight": "#cc3333",
+        "highlighted_text": "#ffffff",
+        "mid": "#4a3030",
+        "placeholder_text": "#8a7070",
+        "bright_text": "#ff4444",
+        "accent": "#cc3333",
+        "accent_text": "#ffffff",
+        "accent_hover": "#e65555",
+        "accent_border": "#b30000",
+        "success": "#cc3333",
+        "success_text": "#ffffff",
+        "success_hover": "#e65555",
+        "success_border": "#b30000",
+        "activity": "#ff8866",
+        "warning": "#ffaa66",
+        "warning_text": "#1a0a0a",
+        "warning_hover": "#ffcc88",
+        "warning_border": "#cc8844",
+        "danger": "#ff4444",
+        "danger_text": "#ffffff",
+        "danger_hover": "#ff6666",
+        "danger_border": "#cc3333",
+    }
+    light = {
+        "highlight": "#cc3333",
+        "accent": "#cc3333",
+        "accent_text": "#ffffff",
+        "accent_hover": "#b30000",
+        "accent_border": "#991111",
+        "success": "#cc3333",
+        "success_text": "#ffffff",
+        "success_hover": "#b30000",
+        "success_border": "#991111",
+        "activity": "#ff8866",
+    }
+    ThemeManager._DARK_PALETTE_COLORS.update(dark)
+    ThemeManager._LIGHT_PALETTE_COLORS.update(light)
+
+
+def main() -> int:
+    _patch_qt_palette()
+    from zapzap.app.application import main as zapzap_main
+
+    return int(zapzap_main() or 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

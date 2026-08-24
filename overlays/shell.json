@@ -3,6 +3,9 @@
         "enabled": true,
         "wallpaperEnabled": true
     },
+    "dashboard": {
+        "showPerfectSense": true
+    },
     "services": {
         "smartScheme": false
     },

@@ -25,7 +25,19 @@ install_missing_pkgs() {
 }
 
 install_app_packages() {
-    install_missing_pkgs "${APP_PKGS[@]}"
+    local pkg filtered=()
+    for pkg in "${APP_PKGS[@]}"; do
+        [[ -n "$pkg" ]] || continue
+        # ZapZap vem do pacote local Inferno (packages/zapzap-pandora)
+        if [[ "$pkg" == "zapzap" ]]; then
+            continue
+        fi
+        filtered+=("$pkg")
+    done
+    if [[ ${#filtered[@]} -gt 0 ]]; then
+        install_missing_pkgs "${filtered[@]}"
+    fi
+    run_step "ZapZap Pandora Inferno (fonte + tema vermelho)" install_zapzap_pandora
 }
 
 # Deps opcionais do Prism (e outras listadas no modelo).

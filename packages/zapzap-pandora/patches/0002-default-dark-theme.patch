@@ -1,0 +1,11 @@
+--- a/zapzap/core/config/settings/appearance.py
++++ b/zapzap/core/config/settings/appearance.py
+@@ -29,7 +29,7 @@
+     _CSR_SHOW_MINIMIZE = ("system/csr_show_minimize_button", True)
+     _CSR_SHOW_MAXIMIZE = ("system/csr_show_maximize_button", True)
+     _CSR_BUTTONS_DIRECTION = ("system/csr_buttons_direction", "right")
+-    _THEME = ("system/theme", ThemeManager.Type.Auto.value)
++    _THEME = ("system/theme", ThemeManager.Type.Dark.value)
+     _TRAY_THEME = ("system/tray_theme", TrayIcon.Type.Default.value)
+     _GRID_COLUMNS = ("system/grid_cols", 2)
+ 

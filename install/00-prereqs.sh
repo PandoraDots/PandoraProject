@@ -9,6 +9,8 @@ fi
 prereqs_install_packages() {
     ensure_paru
 
+    # Hyprland ≥0.56 (hl.dsp + cursor em captura). Após bumps de ABI (aquamarine/libcava),
+    # use scripts/system-update.sh para rebuild de qs + caelestia-shell.
     pacman_install \
         base-devel git cmake ninja python python-pip python-build python-installer \
         python-hatch python-hatchling python-hatch-vcs \
@@ -24,11 +26,15 @@ prereqs_install_packages() {
         adw-gtk-theme papirus-icon-theme papirus-folders \
         qt6-base qt6-declarative qt6-wayland qt6-shadertools \
         frameworkintegration libpipewire \
-        quickshell-git ddcutil brightnessctl lm_sensors aubio \
+        ddcutil brightnessctl lm_sensors aubio \
         ttf-material-symbols-variable ttf-cascadia-code-nerd \
         libqalculate bash python-pillow \
         cava cmatrix tty-clock \
         power-profiles-daemon
+
+    # Quickshell: repo oficial (extra/cachyos). NUNCA noctalia-qs (Provides quickshell-git,
+    # fork incompatível com Caelestia). Se já houver quickshell-git do AUR, mantém.
+    ensure_pandora_quickshell
 
     # AUR com providers conhecidos — um por vez, ordem importa para Qt/KDE.
     aur_install_one qtengine

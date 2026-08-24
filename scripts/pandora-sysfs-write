@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Escrita privilegiada limitada a paths PerfectSense/nekro.
+# Uso: pandora-sysfs-write <path> <value>
+set -euo pipefail
+
+path="${1:?}"
+value="${2:?}"
+
+allowed=(
+    /sys/firmware/acpi/platform_profile
+    /sys/class/platform-profile/platform-profile-0/profile
+    /sys/module/nekro_sense/drivers/platform:acer-wmi/acer-wmi/back_logo/color
+    /sys/devices/platform/acer-wmi/back_logo/color
+    /sys/module/nekro_sense/drivers/platform:acer-wmi/acer-wmi/predator_sense/lighting_reset
+    /sys/devices/platform/acer-wmi/predator_sense/lighting_reset
+)
+
+ok=0
+for a in "${allowed[@]}"; do
+    [[ "$path" == "$a" ]] && ok=1 && break
+done
+[[ "$ok" -eq 1 ]] || { echo "path não permitido: $path" >&2; exit 1; }
+[[ -e "$path" ]] || { echo "path inexistente: $path" >&2; exit 1; }
+
+printf '%s\n' "$value" >"$path"
