@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=OBS Studio (NVIDIA)
+GenericName=Streaming/Recording Software (NVIDIA offload)
+Comment=OBS via prime-run for NVENC on dGPU
+Exec=obs-nvidia
+Icon=com.obsproject.Studio
+Terminal=false
+Type=Application
+Categories=AudioVideo;Recorder;
+StartupNotify=true
+StartupWMClass=obs
