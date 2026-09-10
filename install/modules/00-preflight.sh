@@ -45,13 +45,16 @@ pac_install \
   qt6-wayland qt5-wayland \
   mesa lib32-mesa vulkan-intel vulkan-icd-loader lib32-vulkan-icd-loader \
   intel-media-driver libva-utils \
-  egl-wayland egl-wayland2 libva-nvidia-driver \
+  egl-wayland libva-nvidia-driver \
   opencl-nvidia lib32-opencl-nvidia \
   nvidia-prime \
   bluez bluez-utils \
   power-profiles-daemon upower \
   xorg-xwayland xwayland-satellite \
   seahorse gnome-keyring
+
+# Opcional / mirrors recentes
+pac_install egl-wayland2 || true
 
 systemd_enable NetworkManager bluetooth power-profiles-daemon
 

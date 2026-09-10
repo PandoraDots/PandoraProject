@@ -29,6 +29,7 @@ OFFICIAL=(
   dotnet-sdk-8.0 dotnet-sdk-10.0
   vlc dolphin ffmpeg pipewire wireplumber
   xwayland-satellite power-profiles-daemon
+  accountsservice ffmpegthumbnailer jemalloc kitty
 )
 
 AUR=(

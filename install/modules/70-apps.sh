@@ -91,9 +91,11 @@ pac_install \
   vlc dolphin \
   ark unzip p7zip unrar \
   firefox \
-  steam steam-native-runtime \
+  steam \
   wine-staging winetricks \
   lib32-mesa lib32-vulkan-icd-loader
+# steam-native-runtime nem sempre está no mirror; ignore se faltar
+pac_install steam-native-runtime || true
 
 install_prefer libdvdcss || warn "libdvdcss indisponível (ok)"
 

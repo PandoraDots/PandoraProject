@@ -10,9 +10,10 @@ log "Stack GPU híbrida (iGPU desktop / dGPU offload)"
 
 pac_install \
   nvidia-open-dkms nvidia-utils lib32-nvidia-utils nvidia-settings \
-  nvidia-prime egl-wayland egl-wayland2 libva-nvidia-driver \
+  nvidia-prime egl-wayland libva-nvidia-driver \
   opencl-nvidia lib32-opencl-nvidia \
   mesa lib32-mesa vulkan-intel vulkan-icd-loader lib32-vulkan-icd-loader
+pac_install egl-wayland2 || true
 
 # Kernel modeset for Wayland
 write_if_changed /etc/modprobe.d/nvidia.conf \
@@ -22,10 +23,8 @@ $'options nvidia_drm modeset=1 fbdev=1\noptions nvidia NVreg_PreserveVideoMemory
 if [[ -f /etc/mkinitcpio.conf ]]; then
   backup_file /etc/mkinitcpio.conf
   if grep -qE '^MODULES=' /etc/mkinitcpio.conf; then
-    # ensure i915 + nvidia modules present (idempotent-ish)
     if ! grep -qE 'nvidia_drm' /etc/mkinitcpio.conf; then
       sed -i 's/^MODULES=(/MODULES=(i915 nvidia nvidia_modeset nvidia_uvm nvidia_drm /' /etc/mkinitcpio.conf
-      # collapse possible duplicates later — ok for first run
     fi
   fi
   if pkg_installed linux-zen; then
@@ -36,7 +35,6 @@ if [[ -f /etc/mkinitcpio.conf ]]; then
 fi
 
 install_prefer envycontrol || die "envycontrol é necessário para hybrid"
-# Default hybrid (iGPU display, dGPU on demand)
 if command -v envycontrol >/dev/null; then
   log "EnvyControl → hybrid"
   envycontrol -s hybrid || envycontrol -s hybrid --force || warn "envycontrol hybrid falhou (talvez já esteja)"
@@ -57,7 +55,6 @@ EOF
 install -Dm644 "$INSTALL_ROOT/assets/obs-nvidia.desktop" \
   /usr/share/applications/obs-nvidia.desktop
 
-# Hints de perfil OBS (usuário) — NVENC
 obs_dir="$REAL_HOME/.config/obs-studio"
 as_user mkdir -p "$obs_dir"
 hint="$obs_dir/pandora-nvidia-hint.txt"
@@ -74,13 +71,10 @@ Pandora / Noctalia — OBS + NVIDIA
 EOF
 chown "$REAL_UID:$REAL_GID" "$hint"
 
-# Gaming overlays
 pac_install mangohud lib32-mangohud goverlay
 
-# Convenient prime wrappers
 install -Dm755 /dev/stdin /usr/local/bin/prime-env <<'EOF'
 #!/usr/bin/env bash
-# Exporta env de offload NVIDIA (equivale ao prime-run)
 export __NV_PRIME_RENDER_OFFLOAD=1
 export __VK_LAYER_NV_optimus=NVIDIA_only
 export __GLX_VENDOR_LIBRARY_NAME=nvidia
