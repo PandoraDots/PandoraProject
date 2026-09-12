@@ -210,10 +210,16 @@ def pandora_keybinds():
         "Mod+Shift+Space": '"window-move-to-scratchpad:general"',
         "Mod+Ctrl+Space": '"window-restore-from-scratchpad:general"',
         "Mod+Tab": '"scratchpad-focus-next:general"',
+        # Noctalia capture / clipboard / emoji
+        "Print": '"spawn:noctalia msg screenshot-region"',
+        "Mod+Print": '"spawn:noctalia msg screenshot-fullscreen"',
+        "Mod+V": '"spawn:noctalia msg panel-toggle clipboard"',
+        "Mod+Period": '"spawn:noctalia msg panel-toggle launcher /emo"',
         # Displaced example binds → free chords
         "Mod+Alt+H": '"window-cycle-height"',
         "Mod+Alt+Shift+H": '"window-cycle-height-back"',
         "Mod+Alt+C": '"column-center"',
+        "Mod+Alt+Period": '"window-consume-right"',
         # Replaced by Mod+Alt+F / Mod+Alt+R / Wheel workspace binds.
         "Mod+M": None,
         "Mod+Ctrl+F": None,

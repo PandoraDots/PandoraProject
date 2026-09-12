@@ -224,6 +224,11 @@ follows_mouse = false
         self.assertEqual(kb['Mod+Alt+3'], 'window-move-to-workspace:3')
         self.assertEqual(kb['Mod+WheelUp']['action'], 'workspace-previous')
         self.assertEqual(kb['Mod+MouseBack']['action'], 'overview-toggle')
+        self.assertEqual(kb['Print'], 'spawn:noctalia msg screenshot-region')
+        self.assertEqual(kb['Mod+Print'], 'spawn:noctalia msg screenshot-fullscreen')
+        self.assertEqual(kb['Mod+V'], 'spawn:noctalia msg panel-toggle clipboard')
+        self.assertEqual(kb['Mod+Period'], 'spawn:noctalia msg panel-toggle launcher /emo')
+        self.assertEqual(kb['Mod+Alt+Period'], 'window-consume-right')
         self.assertNotIn('Mod+M', kb)
         self.assertNotIn('Mod+Ctrl+F', kb)
         scratch_rules = [r for r in data['window_rule'] if r.get('default_scratchpad')]
