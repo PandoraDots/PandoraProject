@@ -23,7 +23,7 @@ if ! pkg_installed linux-zen; then
   warn "linux-zen não instalado — archinstall deveria tê-lo colocado. Instalando..."
   pac_install linux-zen linux-zen-headers
 else
-  ok "linux-zen presente"
+  already_ok
   pac_install linux-zen-headers
 fi
 
@@ -31,7 +31,7 @@ if ! pkg_installed nvidia-open-dkms; then
   warn "nvidia-open-dkms ausente — instalando (stack open + zen)"
   pac_install nvidia-open-dkms nvidia-utils lib32-nvidia-utils nvidia-settings
 else
-  ok "nvidia-open-dkms presente"
+  already_ok
   pac_install nvidia-utils lib32-nvidia-utils nvidia-settings
 fi
 

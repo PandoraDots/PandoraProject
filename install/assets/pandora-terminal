@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Kitty login shell that prints fastfetch once when available.
+set -euo pipefail
+term="${PANDORA_TERMINAL:-kitty}"
+exec "$term" -e bash -lc 'command -v fastfetch >/dev/null 2>&1 && fastfetch; exec bash -l'

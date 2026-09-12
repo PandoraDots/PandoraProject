@@ -13,9 +13,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Start logging before common.sh initialization and module execution.
+# shellcheck source=lib/logging.sh
+source "$ROOT/lib/logging.sh"
+start_install_log
 # shellcheck source=lib/common.sh
 source "$ROOT/lib/common.sh"
 
+source "$ROOT/lib/login.sh"
+
+OFFER_LOGIN=0
 need_root
 resolve_user
 
@@ -34,10 +41,15 @@ MODULES=(
 run_module() {
   local name="$1"
   local file="$ROOT/modules/${name}.sh"
+  CURRENT_MODULE="$name"
   [[ -f "$file" ]] || die "Módulo inexistente: $name ($file)"
-  log "── Módulo $name ──"
+  log "── Módulo $name — $(date --iso-8601=seconds) ──"
   # shellcheck disable=SC1090
   bash "$file"
+  case "$name" in
+    50-noctalia-stack|80-finalize) OFFER_LOGIN=1 ;;
+  esac
+  CURRENT_MODULE="nenhum"
 }
 
 if [[ $# -gt 0 ]]; then
@@ -58,3 +70,9 @@ else
 fi
 
 ok "install.sh terminou"
+
+# Fechar e descarregar o log antes da última interação e da troca de sessão.
+finish_install_log 0 return
+if ((OFFER_LOGIN)); then
+  offer_login
+fi

@@ -6,8 +6,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/common.sh"
 need_root
 resolve_user
 
-if pkg_installed perfectsense; then
-  ok "perfectsense já instalado"
+if pkg_installed perfectsense || restore_cached_package perfectsense; then
+  already_ok
   systemd_enable perfectsensed.service || true
   exit 0
 fi
@@ -16,18 +16,19 @@ log "Instalando PerfectSense a partir do GitHub"
 pac_install dkms meson ninja systemd linux-zen-headers
 
 src="$BUILD_DIR/PerfectSense"
-rm -rf "$src"
-as_user git clone --depth=1 "$PS_REPO_URL" "$src"
+if [[ ! -d "$src/.git" ]]; then
+  as_user git clone --depth=1 "$PS_REPO_URL" "$src"
+fi
 
 # Build as user with PERFECTSENSE_SRC
 (
   cd "$src/packaging/arch"
-  as_user env PERFECTSENSE_SRC="$src" makepkg -f --noconfirm --syncdeps
+  as_user env PERFECTSENSE_SRC="$src" makepkg --noconfirm --syncdeps
 )
 
-pkg="$(ls -1t "$src/packaging/arch"/perfectsense-*.pkg.tar.* 2>/dev/null | head -1 || true)"
-[[ -n "$pkg" ]] || die "PKG PerfectSense não gerado"
-pacman -U --noconfirm "$pkg"
+# Inspect metadata: the newest archive may be perfectsense-debug.
+install_built_package perfectsense "$src/packaging/arch"
+pkg_installed perfectsense || die "Pacote perfectsense ausente após instalação"
 
 # DKMS rebuild for zen if needed
 if command -v dkms >/dev/null; then

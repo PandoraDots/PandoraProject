@@ -16,18 +16,31 @@ pac_install \
 pac_install egl-wayland2 || true
 
 # Kernel modeset for Wayland
+gpu_config_changed=0
+nvidia_content=$'options nvidia_drm modeset=1 fbdev=1\noptions nvidia NVreg_PreserveVideoMemoryAllocations=1\n'
+cmp -s /etc/modprobe.d/nvidia.conf <(printf '%s\n' "$nvidia_content") || gpu_config_changed=1
 write_if_changed /etc/modprobe.d/nvidia.conf \
 $'options nvidia_drm modeset=1 fbdev=1\noptions nvidia NVreg_PreserveVideoMemoryAllocations=1\n'
 
+# Hybrid Acer/Predator etc.: nvidia_wmi_ec_backlight claims the panel but often does
+# not control brightness when the compositor runs on Intel. Prefer intel_backlight.
+write_if_changed /etc/modprobe.d/blacklist-nvidia-wmi-ec-backlight.conf \
+$'# Pandora: force i915 intel_backlight on hybrid iGPU sessions\nblacklist nvidia_wmi_ec_backlight\n'
+ensure_kernel_cmdline_param "acpi_backlight=native"
+# UKI/cmdline change may already have rebuilt; keep nvidia MODULES rebuild below.
+
 # mkinitcpio: early load helpful on hybrid laptops
 if [[ -f /etc/mkinitcpio.conf ]]; then
-  backup_file /etc/mkinitcpio.conf
   if grep -qE '^MODULES=' /etc/mkinitcpio.conf; then
     if ! grep -qE 'nvidia_drm' /etc/mkinitcpio.conf; then
+      backup_file /etc/mkinitcpio.conf
+      gpu_config_changed=1
       sed -i 's/^MODULES=(/MODULES=(i915 nvidia nvidia_modeset nvidia_uvm nvidia_drm /' /etc/mkinitcpio.conf
     fi
   fi
-  if pkg_installed linux-zen; then
+  if ((gpu_config_changed == 0)); then
+    already_ok
+  elif pkg_installed linux-zen; then
     mkinitcpio -p linux-zen || warn "mkinitcpio linux-zen falhou (DKMS pode completar no próximo boot)"
   else
     mkinitcpio -P || true
@@ -36,8 +49,12 @@ fi
 
 install_prefer envycontrol || die "envycontrol é necessário para hybrid"
 if command -v envycontrol >/dev/null; then
+  if [[ "$(envycontrol --query 2>/dev/null)" == hybrid ]]; then
+    already_ok
+  else
   log "EnvyControl → hybrid"
   envycontrol -s hybrid || envycontrol -s hybrid --force || warn "envycontrol hybrid falhou (talvez já esteja)"
+  fi
 else
   warn "envycontrol não encontrado no PATH após install"
 fi
@@ -47,18 +64,18 @@ pac_install gamemode lib32-gamemode
 
 # OBS + wrapper NVIDIA
 pac_install obs-studio
-install -Dm755 /dev/stdin /usr/local/bin/obs-nvidia <<'EOF'
+install_if_changed 755 /dev/stdin /usr/local/bin/obs-nvidia <<'EOF'
 #!/usr/bin/env bash
 # OBS via NVIDIA offload (NVENC / encoding na dGPU)
 exec prime-run obs "$@"
 EOF
-install -Dm644 "$INSTALL_ROOT/assets/obs-nvidia.desktop" \
+install_if_changed 644 "$INSTALL_ROOT/assets/obs-nvidia.desktop" \
   /usr/share/applications/obs-nvidia.desktop
 
 obs_dir="$REAL_HOME/.config/obs-studio"
 as_user mkdir -p "$obs_dir"
 hint="$obs_dir/pandora-nvidia-hint.txt"
-cat >"$hint" <<'EOF'
+install_if_changed 644 /dev/stdin "$hint" <<'EOF'
 Pandora / Noctalia — OBS + NVIDIA
 =================================
 1. Abra "OBS Studio (NVIDIA)" (prime-run) ou: obs-nvidia
@@ -73,7 +90,7 @@ chown "$REAL_UID:$REAL_GID" "$hint"
 
 pac_install mangohud lib32-mangohud goverlay
 
-install -Dm755 /dev/stdin /usr/local/bin/prime-env <<'EOF'
+install_if_changed 755 /dev/stdin /usr/local/bin/prime-env <<'EOF'
 #!/usr/bin/env bash
 export __NV_PRIME_RENDER_OFFLOAD=1
 export __VK_LAYER_NV_optimus=NVIDIA_only

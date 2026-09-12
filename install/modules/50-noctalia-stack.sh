@@ -24,14 +24,18 @@ disable_other_display_managers() {
   if unit="$(systemctl show -p Id --value display-manager.service 2>/dev/null || true)"; then
     if [[ -n "$unit" && "$unit" != "display-manager.service" && "$unit" != "greetd.service" ]]; then
       log "Desabilitando display manager atual: $unit"
-      systemctl disable --now "$unit" 2>/dev/null || systemctl disable "$unit" 2>/dev/null || true
+      systemctl disable "$unit" 2>/dev/null || systemctl disable "$unit" 2>/dev/null || true
     fi
   fi
   for dm in sddm gdm gdm3 lightdm lxdm ly; do
     if [[ "$dm.service" == "${unit:-}" ]]; then
       continue
     fi
-    systemctl disable --now "$dm.service" 2>/dev/null || systemctl disable "$dm.service" 2>/dev/null || true
+    if ! systemctl is-enabled --quiet "$dm.service" 2>/dev/null && ! systemctl is-active --quiet "$dm.service" 2>/dev/null; then
+      already_ok
+      continue
+    fi
+    systemctl disable "$dm.service" 2>/dev/null || systemctl disable "$dm.service" 2>/dev/null || true
   done
 }
 
@@ -57,7 +61,7 @@ ensure_umbriel_autostart() {
   local conf="$1"
   # Docs: [general] autostart = ["noctalia"]
   if grep -qE 'autostart\s*=\s*\[[^]]*"noctalia"' "$conf"; then
-    ok "Umbriel já autostarta noctalia"
+    already_ok
     return 0
   fi
   if grep -qE '^[[:space:]]*autostart[[:space:]]*=[[:space:]]*\[\s*\]' "$conf"; then
@@ -77,24 +81,58 @@ ensure_umbriel_hybrid_drm() {
   # Só aplica se Intel + NVIDIA estiverem presentes — senão Umbriel fica sem GPU.
   local conf="$1"
   local nvidia_pci intel_pci
-  nvidia_pci="$(lspci -Dn 2>/dev/null | awk '/ 10de:.*( 0300| 0302| 0380)/ {print $1; exit}')"
-  intel_pci="$(lspci -Dn 2>/dev/null | awk '/ 8086:.*( 0300| 0302| 0380)/ {print $1; exit}')"
+  nvidia_pci="$(lspci -Dn 2>/dev/null | awk '$2 ~ /^(0300|0302|0380):$/ && $3 ~ /^10de:/ {print $1; exit}')"
+  intel_pci="$(lspci -Dn 2>/dev/null | awk '$2 ~ /^(0300|0302|0380):$/ && $3 ~ /^8086:/ {print $1; exit}')"
   if [[ -z "$nvidia_pci" || -z "$intel_pci" ]]; then
     warn "DRM ignore NVIDIA omitido (iGPU Intel não detectada ainda — ligue Hybrid no BIOS)"
     return 0
   fi
-  if grep -qE 'ignored_pci_addresses' "$conf"; then
-    ok "Umbriel [drm] já configurado"
+  python3 "$INSTALL_ROOT/lib/repair-config.py" drm "$conf" "$nvidia_pci" \
+    || die "Falha ao corrigir/validar DRM do Umbriel"
+  ok "Umbriel ignora NVIDIA PCI ${nvidia_pci} (compositor na Intel ${intel_pci})"
+}
+
+ensure_umbriel_keyboard_abnt2() {
+  local conf="$1"
+  python3 "$INSTALL_ROOT/lib/repair-config.py" keyboard "$conf" br abnt2 \
+    || die "Falha ao definir teclado br/abnt2 no Umbriel"
+  ok "Umbriel teclado → br / abnt2"
+}
+
+ensure_umbriel_brightness_binds() {
+  local conf="$1"
+  if grep -qE '^[[:space:]]*"XF86MonBrightness(Up|Down)"' "$conf"; then
+    already_ok
     return 0
   fi
-  cat >>"$conf" <<EOF
+  python3 "$INSTALL_ROOT/lib/repair-config.py" brightness-binds "$conf" \
+    || die "Falha ao habilitar keybinds de brilho no Umbriel"
+  if grep -qE '^[[:space:]]*"XF86MonBrightness(Up|Down)"' "$conf"; then
+    ok "Umbriel keybinds → brilho (Fn)"
+  else
+    warn "Keybinds de brilho não encontrados no example — adicione manualmente se necessário"
+  fi
+}
 
-# Pandora: compositor na iGPU; dGPU sob demanda (prime-run / obs-nvidia)
-# Docs: https://docs.noctalia.dev/umbriel/configuration/#drm-devices
-[drm]
-ignored_pci_addresses = ["${nvidia_pci}"]
-EOF
-  ok "Umbriel ignora NVIDIA PCI ${nvidia_pci} (compositor na Intel ${intel_pci})"
+ensure_umbriel_caelestia_visual() {
+  # Chrome do Caelestia (blur/opacity/sombra/rounding/gaps/anim) — sem scheme vermelho.
+  local conf="$1"
+  python3 "$INSTALL_ROOT/lib/repair-config.py" visual "$conf" \
+    || die "Falha ao aplicar visual Caelestia no Umbriel"
+  ok "Umbriel visual → Caelestia (blur 8×2, opacity 0.95, anim speed×100 ms)"
+}
+
+ensure_umbriel_pandora_keybinds() {
+  local conf="$1"
+  python3 "$INSTALL_ROOT/lib/repair-config.py" keybinds "$conf" \
+    || die "Falha ao aplicar keybinds Pandora no Umbriel"
+  ok "Umbriel keybinds → apps, scratchpads, focus-follows-mouse, scroll→WS"
+}
+
+install_pandora_helpers() {
+  install_if_changed 755 "$INSTALL_ROOT/assets/pandora-scratch-toggle" /usr/local/bin/pandora-scratch-toggle
+  install_if_changed 755 "$INSTALL_ROOT/assets/pandora-terminal" /usr/local/bin/pandora-terminal
+  ok "Helpers → /usr/local/bin/pandora-{scratch-toggle,terminal}"
 }
 
 install_umbriel_user_config() {
@@ -122,11 +160,15 @@ install_umbriel_user_config() {
         || die "Não foi possível obter config.toml do Umbriel"
     fi
   else
-    ok "Mantendo Umbriel config existente"
+    already_ok
   fi
 
   ensure_umbriel_autostart "$conf"
   ensure_umbriel_hybrid_drm "$conf"
+  ensure_umbriel_keyboard_abnt2 "$conf"
+  ensure_umbriel_brightness_binds "$conf"
+  ensure_umbriel_caelestia_visual "$conf"
+  ensure_umbriel_pandora_keybinds "$conf"
 
   # Environment Wayland-friendly (docs Umbriel)
   if ! grep -qE '^[[:space:]]*ELECTRON_OZONE_PLATFORM_HINT' "$conf"; then
@@ -141,23 +183,22 @@ install_umbriel_user_config() {
   if command -v umbriel >/dev/null; then
     as_user umbriel validate -c "$conf" \
       && ok "umbriel validate OK" \
-      || warn "umbriel validate reportou problemas — revise $conf"
+      || die "umbriel validate reportou problemas — revise $conf"
   fi
 }
 
 write_greetd_config() {
   local greeter_bin="$1"
   mkdir -p /etc/greetd
-  backup_file /etc/greetd/config.toml
   # Docs: greetd must launch noctalia-greeter-session (full path), user=greeter.
   # Defaults de sessão/usuário ficam em greeter.toml (evita quebrar Name= com espaços).
-  cat >/etc/greetd/config.toml <<EOF
+  install_if_changed 644 /dev/stdin /etc/greetd/config.toml <<EOF
 # Pandora Noctalia — https://docs.noctalia.dev/greeter/installation/
 [terminal]
 vt = 1
 
 [default_session]
-command = "${greeter_bin}"
+command = "env XKB_DEFAULT_LAYOUT=br XKB_DEFAULT_VARIANT=abnt2 ${greeter_bin}"
 user = "greeter"
 EOF
   ok "greetd → ${greeter_bin}"
@@ -168,42 +209,8 @@ write_greeter_defaults() {
   local f=/var/lib/noctalia-greeter/greeter.toml
   mkdir -p /var/lib/noctalia-greeter
 
-  if [[ ! -f "$f" ]]; then
-    cat >"$f" <<EOF
-# Pandora defaults — https://docs.noctalia.dev/greeter/configuration/
-# Name= exato do .desktop (não o basename do arquivo)
-[user]
-default = "${REAL_USER}"
-
-[session]
-default = "${session_name}"
-EOF
-  else
-    # Atualiza só [user].default e [session].default sem apagar o resto (setup/sync)
-    REAL_USER="$REAL_USER" SESSION_NAME="$session_name" GREETER_TOML="$f" python3 - <<'PY'
-import os, re
-path = os.environ["GREETER_TOML"]
-user = os.environ["REAL_USER"]
-session = os.environ["SESSION_NAME"]
-text = open(path, encoding="utf-8").read()
-
-def set_section_key(text: str, section: str, key: str, value: str) -> str:
-    line = f'{key} = "{value}"'
-    m = re.search(rf'(\[{re.escape(section)}\][^\[]*)', text, re.S)
-    if not m:
-        return text.rstrip() + f"\n\n[{section}]\n{line}\n"
-    body = m.group(1)
-    if re.search(rf'^{re.escape(key)}\s*=', body, re.M):
-        body = re.sub(rf'^{re.escape(key)}\s*=.*$', line, body, count=1, flags=re.M)
-    else:
-        body = body.rstrip() + f"\n{line}\n"
-    return text[: m.start(1)] + body + text[m.end(1) :]
-
-text = set_section_key(text, "user", "default", user)
-text = set_section_key(text, "session", "default", session)
-open(path, "w", encoding="utf-8").write(text)
-PY
-  fi
+  python3 "$INSTALL_ROOT/lib/repair-config.py" greeter "$f" "$REAL_USER" "$session_name" \
+    || die "Configuração do greeter inválida; original preservado"
   chown -R greeter:greeter /var/lib/noctalia-greeter 2>/dev/null || true
   ok "greeter.toml user=${REAL_USER} session=${session_name}"
 }
@@ -217,6 +224,7 @@ log "Stack Noctalia + Umbriel + Greeter"
 pac_install greetd dbus polkit accountsservice noctalia
 # Terminal usado pelos keybinds padrão do example Umbriel (Mod+Return → kitty)
 pac_install kitty foot || pac_install foot || true
+pac_install fastfetch || warn "fastfetch falhou (terminal ainda abre sem banner)"
 
 install_prefer umbriel-git || die "falha umbriel-git"
 # Dependência do umbriel-git; garantir portal
@@ -230,13 +238,20 @@ pac_install \
   ffmpeg ffmpegthumbnailer \
   jemalloc
 
+install_pandora_helpers
+
 # Setup oficial do pacote (PAM + /var/lib/noctalia-greeter + greeter.toml)
 # Path documentado em PACKAGING.md / AUR .install
 setup_ran=0
+if id greeter &>/dev/null && [[ -s /etc/pam.d/greetd && -d /var/lib/noctalia-greeter && -s /var/lib/noctalia-greeter/greeter.toml ]]; then
+  already_ok
+  setup_ran=1
+fi
 for s in \
   /usr/share/noctalia-greeter/setup_greeter_system.sh \
   /usr/local/share/noctalia-greeter/setup_greeter_system.sh
 do
+  ((setup_ran == 0)) || break
   if [[ -x "$s" ]]; then
     log "Rodando setup oficial: $s"
     NOCTALIA_GREETER_SESSION_BIN="$(command -v noctalia-greeter-session || true)" \
@@ -279,13 +294,23 @@ fi
 disable_other_display_managers
 systemd_enable accounts-daemon.service || true
 
-# Habilita greetd; --now só se não houver sessão gráfica ativa (evita matar o DE atual)
-systemctl enable greetd.service
-if [[ -z "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]]; then
-  systemctl enable --now greetd.service || warn "não foi possível startar greetd agora"
+# Seat access for brightnessctl / input devices
+usermod -aG video,input "$REAL_USER" 2>/dev/null || true
+ok "Grupos video+input → $REAL_USER"
+
+# Console / X11 / greeter XKB defaults
+ensure_br_abnt2_keymap
+
+# Habilita para o próximo boot; abrir o login é o último passo do install.sh.
+if systemctl is-enabled --quiet greetd.service; then
+  already_ok
 else
-  warn "Sessão gráfica ativa — greetd enabled; fará cutover no próximo boot"
+  systemctl enable greetd.service
 fi
-systemctl set-default graphical.target || true
+if [[ "$(systemctl get-default)" == graphical.target ]]; then
+  already_ok
+else
+  systemctl set-default graphical.target || true
+fi
 
 ok "Noctalia + Umbriel + Greeter configurados (reboot para login)"

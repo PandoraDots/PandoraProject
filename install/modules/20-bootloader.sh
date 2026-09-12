@@ -18,6 +18,10 @@ case "$bl" in
       fi
     done
     [[ -n "$conf" ]] || conf=/boot/loader/loader.conf
+    if [[ -f "$conf" ]] && grep -qxE 'timeout[[:space:]]+0' "$conf" && grep -qE '^default[[:space:]]' "$conf"; then
+      already_ok
+      exit 0
+    fi
     mkdir -p "$(dirname "$conf")"
     if [[ -f "$conf" ]]; then
       backup_file "$conf"
@@ -34,6 +38,10 @@ case "$bl" in
     ;;
   grub)
     [[ -f /etc/default/grub ]] || die "GRUB detectado sem /etc/default/grub"
+    if grep -qx 'GRUB_TIMEOUT=0' /etc/default/grub && grep -qx 'GRUB_TIMEOUT_STYLE=hidden' /etc/default/grub && [[ -s /boot/grub/grub.cfg || -s /boot/grub2/grub.cfg ]]; then
+      already_ok
+      exit 0
+    fi
     backup_file /etc/default/grub
     if grep -qE '^GRUB_TIMEOUT=' /etc/default/grub; then
       sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/' /etc/default/grub

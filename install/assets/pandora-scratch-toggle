@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# Toggle a named Umbriel scratchpad, spawning the app on first use.
+# Usage: pandora-scratch-toggle <pad> <app_id> -- <command...>
+#
+# Hidden scratchpad windows are unmapped (absent from `umbriel windows`), so we
+# also probe process names with pgrep -x (never -f: our argv contains app_id).
+#
+# Slow apps (ZapZap/QtWebEngine) can race: process appears before the window is
+# stored in the scratchpad. After spawn we retry reveal until the window lists.
+set -euo pipefail
+
+pad="${1:?scratchpad name required}"
+shift
+app_id="${1:?app_id required}"
+shift
+if [[ "${1:-}" == "--" ]]; then
+  shift
+fi
+[[ $# -gt 0 ]] || {
+  echo "usage: pandora-scratch-toggle <pad> <app_id> -- <command...>" >&2
+  exit 2
+}
+
+export PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:${PATH:-/usr/bin}"
+
+# Wayland app_id may be reverse-DNS (com.rtosta.zapzap) while the process
+# comm / binary basename is the short name (zapzap).
+proc_candidates=("$app_id" "${app_id##*.}" "$(basename "$1")")
+
+window_listed() {
+  local want="$1"
+  umbriel windows 2>/dev/null \
+    | sed -E 's/^\*//; s/^[[:space:]]+//; s/^\[Xwayland\][[:space:]]+//' \
+    | awk -v want="$want" 'BEGIN { IGNORECASE = 1 } $1 == want { found = 1 } END { exit !found }'
+}
+
+process_alive() {
+  local name
+  for name in "${proc_candidates[@]}"; do
+    [[ -n "$name" ]] || continue
+    pgrep -x "$name" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
+# Show a pad that should contain a (possibly not-yet-mapped) window.
+# Never toggles when the window is already visible — avoids flip-flop.
+reveal() {
+  local i
+  for i in $(seq 1 30); do
+    if window_listed "$app_id"; then
+      return 0
+    fi
+    umbriel msg "scratchpad-toggle:${pad}" || true
+    sleep 0.2
+    if window_listed "$app_id"; then
+      return 0
+    fi
+    process_alive || return 1
+  done
+  return 0
+}
+
+if window_listed "$app_id"; then
+  # Visible → hide (single toggle).
+  exec umbriel msg "scratchpad-toggle:${pad}"
+fi
+
+if process_alive; then
+  # Running but unmapped in the pad → show.
+  reveal
+  exit $?
+fi
+
+"$@" &
+pid=$!
+
+for _ in $(seq 1 200); do
+  if process_alive; then
+    reveal
+    exit $?
+  fi
+  if ! kill -0 "$pid" 2>/dev/null; then
+    wait "$pid" || true
+    exit 1
+  fi
+  sleep 0.05
+done
+
+reveal || true
+exit 0

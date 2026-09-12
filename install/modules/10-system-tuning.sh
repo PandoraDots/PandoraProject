@@ -6,6 +6,9 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/common.sh"
 need_root
 resolve_user
 
+if grep -qx 'Color' /etc/pacman.conf && grep -qx 'ILoveCandy' /etc/pacman.conf && grep -qxE 'ParallelDownloads[[:space:]]*=[[:space:]]*8' /etc/pacman.conf; then
+  already_ok
+else
 log "Ajustando /etc/pacman.conf (Color + ILoveCandy + ParallelDownloads=8)"
 backup_file /etc/pacman.conf
 # Color
@@ -20,6 +23,11 @@ else
   sed -i '/^\[options\]/a ParallelDownloads = 8' /etc/pacman.conf
 fi
 
+fi
+
+if grep -qx 'MAKEFLAGS="-j6"' /etc/makepkg.conf && grep -qxF 'COMPRESSZST=(zstd -c -T6 -)' /etc/makepkg.conf; then
+  already_ok
+else
 log "Ajustando /etc/makepkg.conf (-j6, zstd -T6)"
 backup_file /etc/makepkg.conf
 if grep -qE '^#?MAKEFLAGS=' /etc/makepkg.conf; then
@@ -33,24 +41,37 @@ else
   printf 'COMPRESSZST=(zstd -c -T6 -)\n' >>/etc/makepkg.conf
 fi
 
+fi
+
 log "zram via systemd-zram-generator"
 pac_install zram-generator
-install -Dm644 "$INSTALL_ROOT/config/zram-generator.conf" /etc/systemd/zram-generator.conf
-systemctl daemon-reload
+if cmp -s "$INSTALL_ROOT/config/zram-generator.conf" /etc/systemd/zram-generator.conf; then
+  already_ok
+else
+  install_if_changed 644 "$INSTALL_ROOT/config/zram-generator.conf" /etc/systemd/zram-generator.conf
+  systemctl daemon-reload
+fi
 systemd_enable systemd-zram-setup@zram0.service || true
 # generator cria a unit no boot; força agora se possível
-systemctl start /dev/zram0 2>/dev/null || true
+if ! systemctl is-active --quiet systemd-zram-setup@zram0.service; then
+  systemctl start /dev/zram0 2>/dev/null || true
+fi
 
 log "Timers: fstrim + paccache"
 pac_install pacman-contrib
 systemd_enable fstrim.timer paccache.timer
 
+if grep -qE '^precedence ::ffff:0:0/96[[:space:]]+100' /etc/gai.conf; then
+  already_ok
+else
 log "Preferência IPv4 em /etc/gai.conf"
 backup_file /etc/gai.conf
 if [[ -f /etc/gai.conf ]]; then
   sed -i 's/^#precedence ::ffff:0:0\/96  100$/precedence ::ffff:0:0\/96  100/' /etc/gai.conf
   grep -qE '^precedence ::ffff:0:0/96' /etc/gai.conf \
     || printf '\nprecedence ::ffff:0:0/96  100\n' >>/etc/gai.conf
+fi
+
 fi
 
 log "Bash: history-search com setas ↑/↓"
@@ -83,11 +104,14 @@ log "Fontes + emoji + MS fonts"
 pac_install \
   ttf-dejavu ttf-liberation ttf-jetbrains-mono-nerd \
   noto-fonts noto-fonts-cjk noto-fonts-emoji \
-  ttf-font-awesome otf-font-awesome \
+  otf-font-awesome \
   cantarell-fonts
 install_prefer ttf-ms-fonts || warn "ttf-ms-fonts falhou (AUR)"
 
 # Rebuild font cache
-as_user fc-cache -fv >/dev/null 2>&1 || fc-cache -fv >/dev/null 2>&1 || true
+as_user fc-cache >/dev/null 2>&1 || fc-cache >/dev/null 2>&1 || true
+
+log "Teclado BR ABNT2 (console + X11 + XKB_DEFAULT)"
+ensure_br_abnt2_keymap
 
 ok "System tuning ok"
