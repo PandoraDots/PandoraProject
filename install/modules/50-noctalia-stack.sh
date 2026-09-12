@@ -131,8 +131,9 @@ ensure_umbriel_pandora_keybinds() {
 
 install_pandora_helpers() {
   install_if_changed 755 "$INSTALL_ROOT/assets/pandora-scratch-toggle" /usr/local/bin/pandora-scratch-toggle
+  install_if_changed 755 "$INSTALL_ROOT/assets/pandora-kitty-shell" /usr/local/bin/pandora-kitty-shell
   install_if_changed 755 "$INSTALL_ROOT/assets/pandora-terminal" /usr/local/bin/pandora-terminal
-  ok "Helpers → /usr/local/bin/pandora-{scratch-toggle,terminal}"
+  ok "Helpers → /usr/local/bin/pandora-{scratch-toggle,kitty-shell,terminal}"
 }
 
 ensure_noctalia_pandora_config() {
@@ -239,11 +240,70 @@ write_greeter_defaults() {
   local session_name="$1"
   local f=/var/lib/noctalia-greeter/greeter.toml
   mkdir -p /var/lib/noctalia-greeter
-
+  # Only user/session — do NOT write [appearance.palette] here; that would block
+  # Sync wallpaper/palette from Noctalia (greeter.toml wins over sync.toml).
   python3 "$INSTALL_ROOT/lib/repair-config.py" greeter "$f" "$REAL_USER" "$session_name" \
     || die "Configuração do greeter inválida; original preservado"
   chown -R greeter:greeter /var/lib/noctalia-greeter 2>/dev/null || true
   ok "greeter.toml user=${REAL_USER} session=${session_name}"
+}
+
+pkg_version() {
+  local name="$1"
+  pacman -Q "$name" 2>/dev/null | awk '{print $2}' || true
+}
+
+# Compare Arch/Pacman versions (epoch:pkgver-pkgrel). Returns 0 if $1 >= $2.
+version_ge() {
+  [[ "$(vercmp "$1" "$2")" -ge 0 ]]
+}
+
+report_noctalia_stack_versions() {
+  local n g u
+  n="$(pkg_version noctalia)"
+  g="$(pkg_version noctalia-greeter)"
+  u="$(pkg_version umbriel-git)"
+  log "Versões: noctalia=${n:-?}  noctalia-greeter=${g:-?}  umbriel-git=${u:-?}"
+  if command -v noctalia >/dev/null; then
+    log "noctalia CLI: $(noctalia --version 2>/dev/null | head -1)"
+  fi
+  if command -v umbriel >/dev/null; then
+    log "umbriel CLI: $(umbriel --version 2>/dev/null | head -1)"
+  fi
+  if command -v noctalia-greeter >/dev/null; then
+    log "greeter CLI: $(noctalia-greeter --version 2>/dev/null | head -1)"
+  fi
+}
+
+assert_noctalia_stack_compat() {
+  # Passwordless constrained sync needs greeter ≥1.5 and Noctalia after 5.0.1 (≥5.1.0).
+  local n g
+  n="$(pkg_version noctalia)"
+  g="$(pkg_version noctalia-greeter)"
+  if [[ -n "$n" ]] && ! version_ge "$n" "5.1.0-1"; then
+    warn "noctalia $n < 5.1.0 — atualize (pacman -Syu noctalia) para editor de print + sync constrained"
+  fi
+  if [[ -n "$g" ]] && ! version_ge "$g" "1.5.0-1"; then
+    warn "noctalia-greeter $g < 1.5.0 — passwordless-sync / --sync Polkit exigem 1.5+"
+  fi
+}
+
+refresh_noctalia_stack_packages() {
+  # Optional full refresh of rolling -git packages. Default off (slow rebuild).
+  # Prefer CLI flag (sudo strips user env):
+  #   sudo ./install/install.sh --refresh-stack 50-noctalia-stack
+  # Or: sudo env PANDORA_REFRESH_STACK=1 ./install/install.sh 50
+  [[ "${PANDORA_REFRESH_STACK:-0}" == "1" ]] || return 0
+  log "PANDORA_REFRESH_STACK=1 → reinstalando noctalia / greeter / umbriel-git"
+  pacman -Sy --noconfirm || warn "pacman -Sy falhou"
+  pacman -S --noconfirm --needed noctalia || warn "noctalia refresh falhou"
+  ensure_paru || { warn "paru indisponível para refresh AUR"; return 0; }
+  # Force AUR rebuild even if pacman thinks the package is installed.
+  as_user paru -S --noconfirm --skipreview --rebuild noctalia-greeter \
+    umbriel-git xdg-desktop-portal-umbriel-git \
+    || as_user paru -S --noconfirm --skipreview noctalia-greeter \
+      umbriel-git xdg-desktop-portal-umbriel-git \
+    || warn "refresh AUR da stack falhou (configs serão reaplicadas mesmo assim)"
 }
 
 # ---------------------------------------------------------------------------
@@ -251,6 +311,14 @@ write_greeter_defaults() {
 # ---------------------------------------------------------------------------
 
 log "Stack Noctalia + Umbriel + Greeter"
+
+# Target matrix (verified 2026-09-12 against docs/releases):
+#   noctalia          ≥ 5.1.0  (extra) — screenshot editor, constrained greeter sync
+#   noctalia-greeter  ≥ 1.5.0  (AUR)   — passwordless --sync Polkit action
+#   umbriel-git       rolling  (AUR)   — re-validate config after rebuild
+refresh_noctalia_stack_packages
+report_noctalia_stack_versions
+assert_noctalia_stack_compat
 
 pac_install greetd dbus polkit accountsservice noctalia
 # Terminal usado pelos keybinds padrão do example Umbriel (Mod+Return → kitty)
@@ -261,6 +329,10 @@ install_prefer umbriel-git || die "falha umbriel-git"
 # Dependência do umbriel-git; garantir portal
 install_prefer xdg-desktop-portal-umbriel-git || true
 install_prefer noctalia-greeter || die "falha noctalia-greeter"
+
+# Re-check after install (first-time machines) and keep helpers in sync.
+report_noctalia_stack_versions
+assert_noctalia_stack_compat
 
 pac_install \
   xdg-desktop-portal xdg-desktop-portal-gtk \
@@ -314,12 +386,14 @@ write_greeter_defaults "$session_name"
 install_umbriel_user_config
 ensure_noctalia_pandora_config
 
-# Sync passwordless opcional (greeter ≥ 1.5.0) — docs Sync with Noctalia
+# Sync passwordless (greeter ≥ 1.5.0 + Noctalia ≥ 5.1.0) — constrained --sync only.
+# Docs: https://docs.noctalia.dev/greeter/sync/
+# greeter.toml declarative appearance would win over sync.toml — we only set user/session.
 if command -v noctalia-greeter >/dev/null; then
   if noctalia-greeter passwordless-sync enable "$REAL_USER" 2>/dev/null; then
-    ok "passwordless-sync habilitado para $REAL_USER"
+    ok "passwordless-sync habilitado para $REAL_USER (constrained appearance sync)"
   else
-    warn "passwordless-sync não aplicado (ok — Sync pedirá senha admin)"
+    warn "passwordless-sync não aplicado (sync continua com prompt de admin — ok)"
   fi
 fi
 

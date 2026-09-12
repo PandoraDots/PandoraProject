@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Kitty shell entrypoint: print fastfetch once, then the real user shell.
+# Used via `kitty -o shell=...` so Win+T opens Kitty itself (not bash -e).
+set -uo pipefail
+
+if [[ -x /usr/bin/fastfetch ]]; then
+  /usr/bin/fastfetch || true
+elif command -v fastfetch >/dev/null 2>&1; then
+  fastfetch || true
+fi
+
+shell="${SHELL:-/usr/bin/bash}"
+[[ -x "$shell" ]] || shell=/usr/bin/bash
+exec "$shell" "$@"

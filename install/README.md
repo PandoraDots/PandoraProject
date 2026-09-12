@@ -15,6 +15,27 @@ Documentação seguida:
 - [Greeter install](https://docs.noctalia.dev/greeter/installation/) → `noctalia-greeter-session` no greetd
 - [Greeter config](https://docs.noctalia.dev/greeter/configuration/) → `/var/lib/noctalia-greeter/greeter.toml`
 - [Sync](https://docs.noctalia.dev/greeter/sync/) → opcional `passwordless-sync`
+- [Changelog Noctalia](https://noctalia.dev/changelogs)
+
+## Versões alvo (matriz Pandora)
+
+| Componente | Pacote | Alvo verificado | Notas |
+|------------|--------|-----------------|-------|
+| Shell | `noctalia` (extra) | **≥ 5.1.0** | Editor de região no print; sync constrained com greeter 1.5 |
+| Greeter | `noctalia-greeter` (AUR) | **≥ 1.5.0** | `passwordless-sync` + Polkit `--sync` |
+| Compositor | `umbriel-git` (AUR) | **rolling** | Reaplicar módulo 50 após rebuild (`umbriel validate`) |
+
+Atualização segura da stack:
+
+```bash
+# Pacotes oficiais + AUR tip do Umbriel, depois repara configs Pandora
+# (a flag sobrevive ao sudo; `VAR=1 sudo …` NÃO passa VAR ao root)
+sudo ./install/install.sh --refresh-stack 50-noctalia-stack
+```
+
+Sem a flag, o módulo **não** recompila `umbriel-git` se já estiver instalado (rápido/idempotente), mas sempre reaplica visual, keybinds, `pandora.toml` e valida o Umbriel — isso é o que evita quebra após upgrades manuais (`paru -S umbriel-git`).
+
+**Importante (Sync):** o instalador só grava `user`/`session` em `greeter.toml`. Não escreve `[appearance.palette]` — isso bloquearia wallpaper/palette vindos do Sync (`greeter.toml` vence `sync.toml`).
 
 ## Antes (archinstall)
 
@@ -67,10 +88,11 @@ Para escolher outro diretório: `sudo env PANDORA_LOG_DIR=/caminho/logs ./instal
 6. Garante `autostart = ["noctalia"]` e, se Intel+NVIDIA existirem, `[drm] ignored_pci_addresses` na dGPU
 7. Teclado **br / abnt2** no Umbriel + keybinds Fn de brilho; `video`/`input` no usuário
 8. Visual estilo Caelestia no Umbriel: blur (size/radius 8, passes 2), opacity 0.95, sombra, rounding 15, gaps 5, beziers e timings Hyprland (`speed`×100 ms). Layers off (Noctalia anima sozinho). Sem scheme vermelho / widgets / shaders custom.
-9. Keybinds Pandora: Cursor/Concord/Sung/Firefox (`--new-window`)/ZapZap, terminal com fastfetch, maximize `Mod+Alt+F`, floating `Mod+Alt+R`, scroll→workspace, focus-follows-mouse, overview também em `Mod+MouseBack/Forward`, `Mod+Alt+1..9` move janela. Scratchpads nomeados (= special workspace) abrem maximizados; ZapZap usa `app_id` `com.rtosta.zapzap`. `Print` = captura região (Noctalia), `Mod+Print` = tela cheia, `Mod+V` = clipboard history, `Mod+Period` = emoji.
+9. Keybinds Pandora: Cursor/Concord/Sung/Firefox (`--new-window`)/ZapZap, terminal com fastfetch, maximize `Mod+Alt+F`, floating `Mod+Alt+R`, scroll→workspace, focus-follows-mouse, overview também em `Mod+MouseBack/Forward`, `Mod+Alt+1..9` move janela. Layout padrão **dwindle**; janela sozinha na workspace abre maximizada (`match.is_alone`). Scratchpads nomeados (= special workspace) abrem maximizados; ZapZap usa `app_id` `com.rtosta.zapzap`. `Print` = captura região (Noctalia), `Mod+Print` = tela cheia, `Mod+V` = clipboard history, `Mod+Period` = emoji.
 10. Noctalia declarative: `~/.config/noctalia/pandora.toml` (bar layout, control center full sidebar, theme wallpaper/Oxocarbon, widgets) + wallpaper em `~/Pictures/Wallpapers/`; remove das GUI overrides (`settings.toml`) as tabelas cobertas para o config vencer.
 11. Desabilita outros DMs; habilita `greetd` + `accounts-daemon`
-12. Tenta `noctalia-greeter passwordless-sync enable <user>` (greeter ≥ 1.5)
+12. Tenta `noctalia-greeter passwordless-sync enable <user>` (greeter ≥ 1.5 + Noctalia ≥ 5.1)
+13. Com `--refresh-stack`, força refresh de `noctalia` / `noctalia-greeter` / `umbriel-git` antes de reparar configs
 
 ## Módulos
 

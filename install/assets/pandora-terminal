@@ -1,5 +1,22 @@
 #!/usr/bin/env bash
-# Kitty login shell that prints fastfetch once when available.
+# Open Kitty (not bash -e). Fastfetch comes from pandora-kitty-shell.
 set -euo pipefail
-term="${PANDORA_TERMINAL:-kitty}"
-exec "$term" -e bash -lc 'command -v fastfetch >/dev/null 2>&1 && fastfetch; exec bash -l'
+
+term="${PANDORA_TERMINAL:-/usr/bin/kitty}"
+[[ -x "$term" ]] || term="$(command -v kitty)"
+
+shell_wrap=""
+for candidate in \
+  "${PANDORA_KITTY_SHELL:-}" \
+  /usr/local/bin/pandora-kitty-shell \
+  "${HOME}/.local/bin/pandora-kitty-shell"
+do
+  [[ -n "$candidate" && -x "$candidate" ]] || continue
+  shell_wrap="$candidate"
+  break
+done
+
+if [[ -n "$shell_wrap" ]]; then
+  exec "$term" -o "shell=${shell_wrap}"
+fi
+exec "$term"

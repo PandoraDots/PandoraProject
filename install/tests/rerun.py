@@ -144,7 +144,7 @@ default_floating = true
         self.assertEqual(data['appearance']['shadow']['softness'], 12)
         self.assertEqual(data['appearance']['shadow']['offset_x'], 0)
         self.assertEqual(data['layout']['gap'], 5)
-        self.assertEqual(data['layout']['mode'], 'scrolling')
+        self.assertEqual(data['layout']['mode'], 'scrolling')  # visual repair does not change layout mode
         anim = data['animation']
         self.assertEqual(anim['windows_in']['duration_ms'], 500)
         self.assertEqual(anim['windows_in']['curve'], 'emphasizedDecel')
@@ -202,6 +202,12 @@ follows_mouse = false
         result = repair.repair(original, 'keybinds', '')
         data = tomllib.loads(result)
         self.assertTrue(data['input']['focus']['follows_mouse'])
+        self.assertEqual(data['layout']['mode'], 'dwindle')
+        alone = next(
+            r for r in data['window_rule']
+            if r.get('match', {}).get('is_alone') is True and 'app_id' not in r.get('match', {})
+        )
+        self.assertTrue(alone['default_maximize'])
         pads = {p['name'] for p in data['scratchpad']}
         self.assertEqual(pads, {'general', 'concord', 'sung', 'whatsapp'})
         kb = data['keybinds']
@@ -214,7 +220,9 @@ follows_mouse = false
         self.assertIn('firefox --new-window', kb['Mod+W'])
         self.assertNotIn('browser', kb['Mod+W'])
         self.assertIn('whatsapp com.rtosta.zapzap --', kb['Mod+A'])
-        self.assertIn('pandora-terminal', kb['Mod+T'])
+        self.assertIn('pandora-kitty-shell', kb['Mod+T'])
+        self.assertIn('kitty', kb['Mod+T'])
+        self.assertNotIn('pandora-terminal', kb['Mod+T'])
         self.assertEqual(kb['Mod+Alt+R'], 'window-toggle-floating')
         self.assertEqual(kb['Mod+Alt+F'], 'window-toggle-maximize-to-edges')
         self.assertEqual(kb['Mod+F'], 'window-toggle-fullscreen')

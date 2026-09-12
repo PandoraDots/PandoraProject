@@ -183,13 +183,15 @@ def _abs_cmd(name):
 
 def pandora_keybinds():
     scratch = _helper_bin("pandora-scratch-toggle")
-    terminal = _helper_bin("pandora-terminal")
+    kitty_shell = _helper_bin("pandora-kitty-shell")
     sung = _abs_cmd("sung")
     zapzap = _abs_cmd("zapzap")
     concord = _abs_cmd("concord")
     kitty = _abs_cmd("kitty")
     firefox = _abs_cmd("firefox")
     cursor = _abs_cmd("cursor")
+    # Spawn Kitty itself; fastfetch via -o shell= (not kitty -e bash).
+    terminal = f"{kitty} -o shell={kitty_shell}"
     binds = {
         "Mod+C": f'"spawn:{cursor}"',
         "Mod+D": f'"spawn:{scratch} concord concord -- {kitty} --app-id=concord -e {concord}"',
@@ -329,8 +331,65 @@ def remove_scratch_window_rules(text, pads):
     return "".join(lines)
 
 
+def ensure_alone_maximize_rule(text):
+    """When a workspace has a single tiled window, maximize it (docs window-rules)."""
+    lines = text.splitlines(keepends=True)
+    alone_assign = re.compile(r"(?m)^\s*match\.is_alone\s*=\s*true\s*(?:#.*)?$")
+    for start, end in _array_table_ranges(lines, "window_rule"):
+        body = "".join(lines[start:end])
+        if not alone_assign.search(body):
+            continue
+        # Refresh maximize flag; leave app-specific alone-rules alone.
+        if re.search(r"(?m)^\s*match\.(app_id|title)\s*=", body):
+            continue
+        for i in range(start + 1, end):
+            if re.match(r"^\s*default_maximize\s*=", lines[i]):
+                lines[i] = "default_maximize = true\n"
+                return "".join(lines)
+        lines.insert(end, "default_maximize = true\n")
+        return "".join(lines)
+
+    # Drop a stray assignment left by older repairs (e.g. under [drm]).
+    cleaned = []
+    for i, line in enumerate(lines):
+        if re.match(r"^\s*default_maximize\s*=\s*true\s*$", line):
+            # Keep only inside [[window_rule]] tables.
+            # Heuristic: skip orphans that sit between non-window_rule headers.
+            prev_headers = [
+                j for j in range(i - 1, -1, -1) if re.match(r"^\s*\[", lines[j])
+            ]
+            if prev_headers and not re.match(r"^\s*\[\[window_rule\]\]", lines[prev_headers[0]]):
+                continue
+        cleaned.append(line)
+    lines = cleaned
+
+    block = [
+        "\n",
+        "# Pandora: alone tiled window fills the workspace\n",
+        "[[window_rule]]\n",
+        "match.is_alone = true\n",
+        "default_maximize = true\n",
+    ]
+    # Prefer before the first Pandora scratchpad rule / layer_rule / end.
+    insert_at = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if "Pandora scratchpad:" in line or re.match(r"^\s*\[\[layer_rule\]\]", line)
+        ),
+        len(lines),
+    )
+    while insert_at > 0 and lines[insert_at - 1].strip() == "":
+        insert_at -= 1
+    lines[insert_at:insert_at] = ["\n"] + block
+    return "".join(lines)
+
+
 def apply_pandora_keybinds(text):
     text = set_key(text, "input.focus", "follows_mouse", True)
+    # Default tiling: dwindle; alone window maximized (not a centered underfull strip).
+    text = set_key(text, "layout", "mode", "dwindle")
+    text = ensure_alone_maximize_rule(text)
     # Concord/Sung/ZapZap scratchpads: maximize to usable edges when shown.
     # (Per-window maximize is cleared on scratchpad entry; this re-applies it.)
     text = set_key(text, "animation.scratchpad", "maximize", True)
