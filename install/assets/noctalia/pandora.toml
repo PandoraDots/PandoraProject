@@ -1,0 +1,109 @@
+# Pandora Noctalia overrides (GUI settings that differ from defaults).
+# Installed as ~/.config/noctalia/pandora.toml — declarative layer.
+# @HOME@ is replaced with the real user home at install time.
+#
+# Intentionally omitted (machine-specific):
+# - lockscreen widget geometry / output names
+# - wallpaper.last / per-monitor wallpaper paths
+
+[accessibility]
+ui_scale = 1.1
+
+[bar.default]
+background_opacity = 0.0
+center = ["group:g1"]
+end = [
+  "tray",
+  "notifications",
+  "network",
+  "bluetooth",
+  "volume",
+  "brightness",
+  "battery",
+  "control-center",
+  "bar",
+  "settings",
+  "session",
+]
+margin_edge = 2
+margin_ends = 5
+margin_opposite_edge = 1
+scale = 1.4
+start = ["workspaces", "media"]
+
+[[bar.default.capsule_group]]
+accordion = false
+accordion_direction = "end"
+enabled = true
+fill = "surface_variant"
+id = "g1"
+members = ["audio_visualizer", "clock", "audio_visualizer"]
+opacity = 1.0
+padding = 6.0
+
+[control_center]
+sidebar = "full"
+sidebar_section = "full"
+width = 1000
+
+[desktop_widgets]
+schema_version = 2
+widget_order = []
+
+[desktop_widgets.grid]
+cell_size = 16
+major_interval = 4
+visible = true
+
+[plugins]
+enabled = ["noctalia/umbriel-companion"]
+
+[shell.panel]
+launcher_position = "bottom_center"
+open_near_click_control_center = true
+
+[theme]
+builtin = "Noctalia"
+community_palette = "Oxocarbon"
+mode = "dark"
+source = "wallpaper"
+wallpaper_scheme = "m3-content"
+
+[wallpaper.default]
+path = "@HOME@/Pictures/Wallpapers/glassesredjapan.jpg"
+
+[widget.audio_visualizer]
+scale = 2.0
+show_when_idle = true
+
+[widget.bar]
+enable_scroll = false
+scroll_cycles_layout = false
+type = "noctalia/umbriel-companion:bar"
+
+[widget.brightness]
+show_label = false
+
+[widget.clock]
+anchor = true
+format = "{:%A %H:%M %b %d}"
+
+[widget.clock.actions]
+left = "panel-toggle control-center home"
+right = "panel-toggle control-center calendar"
+
+[widget.control-center]
+enabled = false
+
+[widget.media]
+max_length = 120
+title_scroll = "always"
+
+[widget.network]
+show_label = false
+
+[widget.tray]
+drawer = true
+
+[widget.volume]
+show_label = false

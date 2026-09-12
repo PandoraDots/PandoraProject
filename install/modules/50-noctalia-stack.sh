@@ -135,6 +135,37 @@ install_pandora_helpers() {
   ok "Helpers → /usr/local/bin/pandora-{scratch-toggle,terminal}"
 }
 
+ensure_noctalia_pandora_config() {
+  # Declarative Noctalia overrides from the GUI (bar/CC/theme/widgets).
+  # Docs: ~/.config/noctalia/*.toml merge; settings.toml wins — prune managed keys.
+  local conf_dir="$REAL_HOME/.config/noctalia"
+  local wall_dir="$REAL_HOME/Pictures/Wallpapers"
+  local wall_src="$INSTALL_ROOT/assets/wallpapers/glassesredjapan.jpg"
+  local template="$INSTALL_ROOT/assets/noctalia/pandora.toml"
+  local dest="$conf_dir/pandora.toml"
+  local settings="$REAL_HOME/.local/state/noctalia/settings.toml"
+
+  as_user mkdir -p "$conf_dir" "$wall_dir" "$REAL_HOME/.local/state/noctalia"
+  if [[ -f "$wall_src" ]]; then
+    install_if_changed 644 "$wall_src" "$wall_dir/glassesredjapan.jpg"
+    chown "$REAL_UID:$REAL_GID" "$wall_dir/glassesredjapan.jpg"
+  else
+    warn "Wallpaper Pandora ausente em assets/wallpapers"
+  fi
+
+  python3 "$INSTALL_ROOT/lib/repair-config.py" noctalia-render "$dest" "$REAL_HOME" "$template" \
+    || die "Falha ao instalar ~/.config/noctalia/pandora.toml"
+  chown "$REAL_UID:$REAL_GID" "$dest"
+  ok "Noctalia → ~/.config/noctalia/pandora.toml (bar, control center, theme, widgets)"
+
+  if [[ -f "$settings" ]]; then
+    python3 "$INSTALL_ROOT/lib/repair-config.py" noctalia-prune-settings "$settings" "$dest" \
+      || die "Falha ao limpar overrides conflitantes em settings.toml"
+    chown "$REAL_UID:$REAL_GID" "$settings"
+    ok "Noctalia settings.toml → removidas tabelas cobertas por pandora.toml"
+  fi
+}
+
 install_umbriel_user_config() {
   local conf="$REAL_HOME/.config/umbriel/config.toml"
   as_user mkdir -p "$REAL_HOME/.config/umbriel"
@@ -281,6 +312,7 @@ ok "Sessão padrão do greeter: Name=${session_name}"
 write_greetd_config "$greeter_bin"
 write_greeter_defaults "$session_name"
 install_umbriel_user_config
+ensure_noctalia_pandora_config
 
 # Sync passwordless opcional (greeter ≥ 1.5.0) — docs Sync with Noctalia
 if command -v noctalia-greeter >/dev/null; then

@@ -243,6 +243,30 @@ follows_mouse = false
         self.assertEqual(tomllib.loads(second), tomllib.loads(result))
         self.assertEqual(repair.repair(second, 'keybinds', ''), second)
 
+    def test_noctalia_render_and_prune(self):
+        template = 'path = "@HOME@/Pictures/Wallpapers/x.jpg"\n[theme]\nsource = "wallpaper"\n'
+        rendered = repair.repair(template, 'noctalia-render', '/home/demo')
+        self.assertIn('/home/demo/Pictures/Wallpapers/x.jpg', rendered)
+        self.assertNotIn('@HOME@', rendered)
+        settings = '''config_version = 14
+[theme]
+source = "builtin"
+[lockscreen_widgets]
+enabled = false
+[bar.default]
+scale = 1.0
+'''
+        import tempfile, pathlib
+        with tempfile.TemporaryDirectory() as tmp:
+            pandora = pathlib.Path(tmp) / 'pandora.toml'
+            pandora.write_text('[theme]\nsource = "wallpaper"\n[bar.default]\nscale = 1.4\n')
+            pruned = repair.repair(settings, 'noctalia-prune-settings', str(pandora))
+        data = tomllib.loads(pruned)
+        self.assertEqual(data['config_version'], 14)
+        self.assertIn('lockscreen_widgets', data)
+        self.assertNotIn('theme', data)
+        self.assertNotIn('bar', data)
+
 
 if __name__ == '__main__':
     unittest.main()

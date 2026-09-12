@@ -388,10 +388,46 @@ def repair(text, kind, value, *extra):
         text = upsert_selectorless_window_rule(text, CAELESTIA_WINDOW_RULE)
     elif kind == "keybinds":
         text = apply_pandora_keybinds(text)
+    elif kind == "noctalia-render":
+        # value = user home; extra[0] = template path (optional if `text` already is template)
+        template = pathlib.Path(extra[0]).read_text() if extra else text
+        home = (value or str(pathlib.Path.home())).rstrip("/")
+        text = template.replace("@HOME@", home)
+    elif kind == "noctalia-prune-settings":
+        # Drop GUI override tables that Pandora ships declaratively so config wins.
+        # value = path to installed pandora.toml
+        managed_path = pathlib.Path(value) if value else None
+        if managed_path is None or not managed_path.is_file():
+            raise ValueError("noctalia-prune-settings requires pandora.toml path")
+        managed = set(tomllib.loads(managed_path.read_text()).keys())
+        text = prune_noctalia_settings(text, managed)
     else:
         raise ValueError(f"unknown repair kind: {kind}")
     tomllib.loads(text)
     return text
+
+
+def prune_noctalia_settings(text, managed_roots):
+    """Remove top-level tables whose root key is in managed_roots."""
+    if not text.strip():
+        return text
+    lines = text.splitlines(keepends=True)
+    out = []
+    skip = False
+    for line in lines:
+        header = re.match(r"^\s*\[\[?([^\]\s]+)", line)
+        if header:
+            root = header.group(1).split(".", 1)[0]
+            skip = root in managed_roots
+        if not skip:
+            out.append(line)
+    # Drop leading blank lines left after removals.
+    while out and out[0].strip() == "":
+        out.pop(0)
+    result = "".join(out)
+    if result and not result.endswith("\n"):
+        result += "\n"
+    return result
 
 
 def main():
@@ -400,6 +436,9 @@ def main():
     kind = sys.argv[1]
     value = sys.argv[3] if len(sys.argv) > 3 else ""
     extra = sys.argv[4:]
+    # noctalia-render writes a new declarative file from a template.
+    if kind == "noctalia-render" and extra:
+        original = ""
     updated = repair(original, kind, value, *extra)
     if kind == "greeter" and len(sys.argv) > 4:
         updated = set_key(updated, "session", "default", sys.argv[4])
@@ -408,6 +447,7 @@ def main():
         if path.exists():
             import shutil
             shutil.copy2(path, str(path) + ".pandora.bak." + datetime.datetime.now().strftime("%Y%m%d%H%M%S%f"))
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(updated)
         print(f"OK: repaired and validated {path}")
     else:

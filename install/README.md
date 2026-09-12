@@ -68,8 +68,9 @@ Para escolher outro diretório: `sudo env PANDORA_LOG_DIR=/caminho/logs ./instal
 7. Teclado **br / abnt2** no Umbriel + keybinds Fn de brilho; `video`/`input` no usuário
 8. Visual estilo Caelestia no Umbriel: blur (size/radius 8, passes 2), opacity 0.95, sombra, rounding 15, gaps 5, beziers e timings Hyprland (`speed`×100 ms). Layers off (Noctalia anima sozinho). Sem scheme vermelho / widgets / shaders custom.
 9. Keybinds Pandora: Cursor/Concord/Sung/Firefox (`--new-window`)/ZapZap, terminal com fastfetch, maximize `Mod+Alt+F`, floating `Mod+Alt+R`, scroll→workspace, focus-follows-mouse, overview também em `Mod+MouseBack/Forward`, `Mod+Alt+1..9` move janela. Scratchpads nomeados (= special workspace) abrem maximizados; ZapZap usa `app_id` `com.rtosta.zapzap`. `Print` = captura região (Noctalia), `Mod+Print` = tela cheia, `Mod+V` = clipboard history, `Mod+Period` = emoji.
-10. Desabilita outros DMs; habilita `greetd` + `accounts-daemon`
-11. Tenta `noctalia-greeter passwordless-sync enable <user>` (greeter ≥ 1.5)
+10. Noctalia declarative: `~/.config/noctalia/pandora.toml` (bar layout, control center full sidebar, theme wallpaper/Oxocarbon, widgets) + wallpaper em `~/Pictures/Wallpapers/`; remove das GUI overrides (`settings.toml`) as tabelas cobertas para o config vencer.
+11. Desabilita outros DMs; habilita `greetd` + `accounts-daemon`
+12. Tenta `noctalia-greeter passwordless-sync enable <user>` (greeter ≥ 1.5)
 
 ## Módulos
 
