@@ -77,19 +77,15 @@ ensure_umbriel_autostart() {
 }
 
 ensure_umbriel_hybrid_drm() {
-  # iGPU para o compositor; dGPU só via prime-run (modelo híbrido do Helios).
-  # Só aplica se Intel + NVIDIA estiverem presentes — senão Umbriel fica sem GPU.
+  # Em laptops híbridos (como Helios Neo 16), o HDMI/DP externo é fisicamente
+  # conectado à dGPU NVIDIA, enquanto a tela interna é ligada à iGPU Intel.
+  # Não podemos ignorar a NVIDIA no [drm] do Umbriel, senão monitores externos
+  # ficam sem sinal. O compositor usa multi-GPU (WLR_DRM_DEVICES) com primária na Intel.
   local conf="$1"
-  local nvidia_pci intel_pci
-  nvidia_pci="$(lspci -Dn 2>/dev/null | awk '$2 ~ /^(0300|0302|0380):$/ && $3 ~ /^10de:/ {print $1; exit}')"
-  intel_pci="$(lspci -Dn 2>/dev/null | awk '$2 ~ /^(0300|0302|0380):$/ && $3 ~ /^8086:/ {print $1; exit}')"
-  if [[ -z "$nvidia_pci" || -z "$intel_pci" ]]; then
-    warn "DRM ignore NVIDIA omitido (iGPU Intel não detectada ainda — ligue Hybrid no BIOS)"
-    return 0
+  if grep -qE '^[[:space:]]*ignored_pci_addresses' "$conf" 2>/dev/null; then
+    sed -i -E 's/^[[:space:]]*(ignored_pci_addresses[[:space:]]*=)/# \1/' "$conf"
   fi
-  python3 "$INSTALL_ROOT/lib/repair-config.py" drm "$conf" "$nvidia_pci" \
-    || die "Falha ao corrigir/validar DRM do Umbriel"
-  ok "Umbriel ignora NVIDIA PCI ${nvidia_pci} (compositor na Intel ${intel_pci})"
+  ok "Umbriel DRM multi-GPU configurado (Intel primária + NVIDIA para saídas externas)"
 }
 
 ensure_umbriel_keyboard_abnt2() {
@@ -134,6 +130,29 @@ install_pandora_helpers() {
   install_if_changed 755 "$INSTALL_ROOT/assets/pandora-kitty-shell" /usr/local/bin/pandora-kitty-shell
   install_if_changed 755 "$INSTALL_ROOT/assets/pandora-terminal" /usr/local/bin/pandora-terminal
   ok "Helpers → /usr/local/bin/pandora-{scratch-toggle,kitty-shell,terminal}"
+}
+
+ensure_kitty_pandora_config() {
+  # Disable close confirmation so Mod+T open/close can be spammed.
+  local dir="$REAL_HOME/.config/kitty"
+  local conf="$dir/kitty.conf"
+  local src="$INSTALL_ROOT/assets/kitty/kitty.conf"
+  as_user mkdir -p "$dir"
+  # Earlier sudo runs sometimes left this dir root-owned and empty.
+  chown -R "$REAL_USER:$REAL_USER" "$dir" 2>/dev/null || true
+  if [[ -f "$conf" ]]; then
+    if grep -qE '^[[:space:]]*confirm_os_window_close[[:space:]]+' "$conf"; then
+      as_user sed -i -E 's/^[[:space:]]*confirm_os_window_close[[:space:]]+.*/confirm_os_window_close 0/' "$conf" \
+        || die "Falha ao ajustar confirm_os_window_close no Kitty"
+    else
+      as_user bash -c "printf '\n# Pandora\nconfirm_os_window_close 0\n' >> \"$conf\"" \
+        || die "Falha ao acrescentar confirm_os_window_close no Kitty"
+    fi
+  else
+    install_if_changed 644 "$src" "$conf" || die "Falha ao instalar kitty.conf Pandora"
+  fi
+  chown -R "$REAL_USER:$REAL_USER" "$dir" 2>/dev/null || true
+  ok "Kitty → confirm_os_window_close 0 (fechar sem aviso)"
 }
 
 ensure_noctalia_pandora_config() {
@@ -187,7 +206,7 @@ install_umbriel_user_config() {
     else
       log "Baixando examples/config.toml upstream (pacote sem example)"
       as_user curl -fsSL \
-        https://raw.githubusercontent.com/noctalia-dev/umbriel/main/examples/config.toml \
+        https://raw.githubusercontent.com/yPerfectBR/umbriel/main/examples/config.toml \
         -o "$conf" \
         || die "Não foi possível obter config.toml do Umbriel"
     fi
@@ -253,98 +272,231 @@ pkg_version() {
   pacman -Q "$name" 2>/dev/null | awk '{print $2}' || true
 }
 
-# Compare Arch/Pacman versions (epoch:pkgver-pkgrel). Returns 0 if $1 >= $2.
+# Compare versions (epoch:pkgver-pkgrel or semver). Returns 0 if $1 >= $2.
 version_ge() {
   [[ "$(vercmp "$1" "$2")" -ge 0 ]]
 }
 
 report_noctalia_stack_versions() {
-  local n g u
-  n="$(pkg_version noctalia)"
-  g="$(pkg_version noctalia-greeter)"
-  u="$(pkg_version umbriel-git)"
-  log "Versões: noctalia=${n:-?}  noctalia-greeter=${g:-?}  umbriel-git=${u:-?}"
+  resolve_stack_paths
+  log "Versões instaladas da stack:"
   if command -v noctalia >/dev/null; then
-    log "noctalia CLI: $(noctalia --version 2>/dev/null | head -1)"
+    log "  noctalia:         $(noctalia --version 2>/dev/null | head -1) (fonte: $NOCTALIA_SRC)"
+  else
+    warn "  noctalia:         não encontrado"
   fi
   if command -v umbriel >/dev/null; then
-    log "umbriel CLI: $(umbriel --version 2>/dev/null | head -1)"
+    log "  umbriel:          $(umbriel --version 2>/dev/null | head -1) (fonte: $UMBRIEL_SRC)"
+  else
+    warn "  umbriel:          não encontrado"
   fi
   if command -v noctalia-greeter >/dev/null; then
-    log "greeter CLI: $(noctalia-greeter --version 2>/dev/null | head -1)"
+    log "  noctalia-greeter: $(noctalia-greeter --version 2>/dev/null | head -1) (fonte: $NOCTALIA_GREETER_SRC)"
+  else
+    warn "  noctalia-greeter: não encontrado"
   fi
 }
 
 assert_noctalia_stack_compat() {
-  # Passwordless constrained sync needs greeter ≥1.5 and Noctalia after 5.0.1 (≥5.1.0).
-  local n g
-  n="$(pkg_version noctalia)"
-  g="$(pkg_version noctalia-greeter)"
-  if [[ -n "$n" ]] && ! version_ge "$n" "5.1.0-1"; then
-    warn "noctalia $n < 5.1.0 — atualize (pacman -Syu noctalia) para editor de print + sync constrained"
+  local g_ver n_ver
+  if command -v noctalia-greeter >/dev/null; then
+    g_ver="$(noctalia-greeter --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+    if [[ -n "$g_ver" ]] && ! version_ge "$g_ver" "1.5.0"; then
+      warn "noctalia-greeter $g_ver < 1.5.0 — passwordless-sync / --sync Polkit exigem 1.5+"
+    fi
   fi
-  if [[ -n "$g" ]] && ! version_ge "$g" "1.5.0-1"; then
-    warn "noctalia-greeter $g < 1.5.0 — passwordless-sync / --sync Polkit exigem 1.5+"
+  if command -v noctalia >/dev/null; then
+    n_ver="$(noctalia --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+    if [[ -n "$n_ver" ]] && ! version_ge "$n_ver" "5.1.0"; then
+      warn "noctalia $n_ver < 5.1.0 — atualize para editor de print + sync constrained"
+    fi
   fi
 }
 
-refresh_noctalia_stack_packages() {
-  # Optional full refresh of rolling -git packages. Default off (slow rebuild).
-  # Prefer CLI flag (sudo strips user env):
-  #   sudo ./install/install.sh --refresh-stack 50-noctalia-stack
-  # Or: sudo env PANDORA_REFRESH_STACK=1 ./install/install.sh 50
-  [[ "${PANDORA_REFRESH_STACK:-0}" == "1" ]] || return 0
-  log "PANDORA_REFRESH_STACK=1 → reinstalando noctalia / greeter / umbriel-git"
-  pacman -Sy --noconfirm || warn "pacman -Sy falhou"
-  pacman -S --noconfirm --needed noctalia || warn "noctalia refresh falhou"
-  ensure_paru || { warn "paru indisponível para refresh AUR"; return 0; }
-  # Force AUR rebuild even if pacman thinks the package is installed.
-  as_user paru -S --noconfirm --skipreview --rebuild noctalia-greeter \
-    umbriel-git xdg-desktop-portal-umbriel-git \
-    || as_user paru -S --noconfirm --skipreview noctalia-greeter \
-      umbriel-git xdg-desktop-portal-umbriel-git \
-    || warn "refresh AUR da stack falhou (configs serão reaplicadas mesmo assim)"
+# ---------------------------------------------------------------------------
+# Source Builds: Umbriel, Portal, Noctalia, Noctalia-Greeter
+# ---------------------------------------------------------------------------
+
+build_and_install_umbriel() {
+  resolve_stack_paths
+  ensure_source_repo "$UMBRIEL_SRC" "$UMBRIEL_REPO_URL" || die "Falha ao obter repositório umbriel"
+  log "Compilando Umbriel a partir de $UMBRIEL_SRC"
+  local bdir="$UMBRIEL_SRC/build"
+  if [[ "${PANDORA_REFRESH_STACK:-0}" == "1" ]]; then
+    rm -rf "$bdir"
+  fi
+  if [[ ! -f "$bdir/build.ninja" ]]; then
+    as_user meson setup "$bdir" "$UMBRIEL_SRC" \
+      --buildtype=release \
+      --prefix=/usr \
+      --wrap-mode=nodownload \
+      -Dtests=disabled || die "Falha no meson setup do Umbriel"
+  else
+    as_user meson setup "$bdir" "$UMBRIEL_SRC" \
+      --buildtype=release \
+      --prefix=/usr \
+      --wrap-mode=nodownload \
+      -Dtests=disabled --reconfigure || die "Falha ao reconfigurar Umbriel"
+  fi
+  # shellcheck disable=SC2046
+  as_user env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Umbriel"
+  log "Instalando Umbriel em /usr"
+  meson install -C "$bdir" --no-rebuild || die "Falha na instalação do Umbriel"
+  ok "Umbriel compilado e instalado"
+}
+
+build_and_install_portal() {
+  resolve_stack_paths
+  if [[ ! -d "$PORTAL_SRC/.git" ]]; then
+    log "Verificando repositório xdg-desktop-portal-umbriel..."
+    if ! ensure_source_repo "$PORTAL_SRC" "$PORTAL_REPO_URL"; then
+      warn "Clone de xdg-desktop-portal-umbriel falhou — tentando instalar via AUR..."
+      install_prefer xdg-desktop-portal-umbriel-git || true
+      return 0
+    fi
+  fi
+  log "Compilando xdg-desktop-portal-umbriel a partir de $PORTAL_SRC"
+  local bdir="$PORTAL_SRC/build"
+  if [[ "${PANDORA_REFRESH_STACK:-0}" == "1" ]]; then
+    rm -rf "$bdir"
+  fi
+  if [[ ! -f "$bdir/build.ninja" ]]; then
+    as_user meson setup "$bdir" "$PORTAL_SRC" \
+      --buildtype=release \
+      --prefix=/usr \
+      --libexecdir=lib \
+      --wrap-mode=nodownload || {
+        warn "meson setup do portal falhou — tentando AUR como fallback"
+        install_prefer xdg-desktop-portal-umbriel-git || true
+        return 0
+      }
+  else
+    as_user meson setup "$bdir" "$PORTAL_SRC" \
+      --buildtype=release \
+      --prefix=/usr \
+      --libexecdir=lib \
+      --wrap-mode=nodownload --reconfigure || {
+        warn "meson reconfigure do portal falhou — tentando AUR como fallback"
+        install_prefer xdg-desktop-portal-umbriel-git || true
+        return 0
+      }
+  fi
+  # shellcheck disable=SC2046
+  as_user env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || {
+    warn "Compilação do portal falhou — tentando AUR como fallback"
+    install_prefer xdg-desktop-portal-umbriel-git || true
+    return 0
+  }
+  log "Instalando xdg-desktop-portal-umbriel em /usr"
+  meson install -C "$bdir" --no-rebuild || {
+    warn "Instalação do portal falhou — tentando AUR como fallback"
+    install_prefer xdg-desktop-portal-umbriel-git || true
+    return 0
+  }
+  ok "xdg-desktop-portal-umbriel compilado e instalado"
+}
+
+build_and_install_noctalia() {
+  resolve_stack_paths
+  ensure_source_repo "$NOCTALIA_SRC" "$NOCTALIA_REPO_URL" || die "Falha ao obter repositório noctalia"
+  log "Compilando Noctalia a partir de $NOCTALIA_SRC"
+  local bdir="$NOCTALIA_SRC/build"
+  if [[ "${PANDORA_REFRESH_STACK:-0}" == "1" ]]; then
+    rm -rf "$bdir"
+  fi
+  if [[ ! -f "$bdir/build.ninja" ]]; then
+    as_user meson setup "$bdir" "$NOCTALIA_SRC" \
+      --buildtype=release \
+      --prefix=/usr \
+      -Db_ndebug=true \
+      -Dtests=disabled || die "Falha no meson setup do Noctalia"
+  else
+    as_user meson setup "$bdir" "$NOCTALIA_SRC" \
+      --buildtype=release \
+      --prefix=/usr \
+      -Db_ndebug=true \
+      -Dtests=disabled --reconfigure || die "Falha ao reconfigurar Noctalia"
+  fi
+  # shellcheck disable=SC2046
+  as_user env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Noctalia"
+  log "Instalando Noctalia em /usr"
+  meson install -C "$bdir" --no-rebuild || die "Falha na instalação do Noctalia"
+  ok "Noctalia compilado e instalado"
+}
+
+build_and_install_noctalia_greeter() {
+  resolve_stack_paths
+  ensure_source_repo "$NOCTALIA_GREETER_SRC" "$NOCTALIA_GREETER_REPO_URL" || die "Falha ao obter repositório noctalia-greeter"
+  log "Compilando Noctalia-Greeter a partir de $NOCTALIA_GREETER_SRC"
+  local bdir="$NOCTALIA_GREETER_SRC/build"
+  if [[ "${PANDORA_REFRESH_STACK:-0}" == "1" ]]; then
+    rm -rf "$bdir"
+  fi
+  if [[ ! -f "$bdir/build.ninja" ]]; then
+    as_user meson setup "$bdir" "$NOCTALIA_GREETER_SRC" \
+      --buildtype=release \
+      --prefix=/usr \
+      -Db_ndebug=true || die "Falha no meson setup do Noctalia-Greeter"
+  else
+    as_user meson setup "$bdir" "$NOCTALIA_GREETER_SRC" \
+      --buildtype=release \
+      --prefix=/usr \
+      -Db_ndebug=true --reconfigure || die "Falha ao reconfigurar Noctalia-Greeter"
+  fi
+  # shellcheck disable=SC2046
+  as_user env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Noctalia-Greeter"
+  log "Instalando Noctalia-Greeter em /usr"
+  meson install -C "$bdir" --no-rebuild || die "Falha na instalação do Noctalia-Greeter"
+  ok "Noctalia-Greeter compilado e instalado"
 }
 
 # ---------------------------------------------------------------------------
-# Install packages
+# Install packages & build stack
 # ---------------------------------------------------------------------------
 
-log "Stack Noctalia + Umbriel + Greeter"
+resolve_stack_paths
+configure_build_parallelism_install
 
-# Target matrix (verified 2026-09-12 against docs/releases):
-#   noctalia          ≥ 5.1.0  (extra) — screenshot editor, constrained greeter sync
-#   noctalia-greeter  ≥ 1.5.0  (AUR)   — passwordless --sync Polkit action
-#   umbriel-git       rolling  (AUR)   — re-validate config after rebuild
-refresh_noctalia_stack_packages
-report_noctalia_stack_versions
-assert_noctalia_stack_compat
+log "Stack Noctalia + Umbriel + Greeter (Build de repositórios locais)"
+log "Caminhos fonte: Noctalia=$NOCTALIA_SRC | Greeter=$NOCTALIA_GREETER_SRC | Umbriel=$UMBRIEL_SRC"
+log "Cores de build: $(pandora_build_jobs) threads ativas"
 
-pac_install greetd dbus polkit accountsservice noctalia
+# 1. Dependências de compilação e execução oficiais (Arch repos)
+log "Instalando dependências oficiais de build e runtime"
+pac_install \
+  greetd dbus polkit accountsservice \
+  gcc meson ninja pkgconf just git \
+  wayland wayland-protocols wlroots0.20 \
+  cairo pango harfbuzz freetype2 fontconfig \
+  glib2 libxkbcommon libsecret libsodium \
+  sdbus-cpp libpipewire wireplumber pam curl \
+  libwebp libjxl libsndfile librsvg libqalculate libxml2 \
+  md4c tomlplusplus libical nlohmann-json stb jemalloc \
+  lcms2 libdrm libinput pixman mesa egl-gbm libepoxy \
+  xwayland-satellite gtk4 \
+  xdg-desktop-portal xdg-desktop-portal-gtk \
+  brightnessctl playerctl grim slurp wl-clipboard \
+  ffmpeg ffmpegthumbnailer
+
 # Terminal usado pelos keybinds padrão do example Umbriel (Mod+Return → kitty)
 pac_install kitty foot || pac_install foot || true
 pac_install fastfetch || warn "fastfetch falhou (terminal ainda abre sem banner)"
 
-install_prefer umbriel-git || die "falha umbriel-git"
-# Dependência do umbriel-git; garantir portal
-install_prefer xdg-desktop-portal-umbriel-git || true
-install_prefer noctalia-greeter || die "falha noctalia-greeter"
+# 2. Build e instalação a partir dos repositórios locais (ou clonados)
+build_and_install_umbriel
+build_and_install_portal
+build_and_install_noctalia
+build_and_install_noctalia_greeter
 
-# Re-check after install (first-time machines) and keep helpers in sync.
+# 3. Validar e reportar versões instaladas
 report_noctalia_stack_versions
 assert_noctalia_stack_compat
 
-pac_install \
-  xdg-desktop-portal xdg-desktop-portal-gtk \
-  brightnessctl playerctl \
-  grim slurp wl-clipboard \
-  ffmpeg ffmpegthumbnailer \
-  jemalloc
-
 install_pandora_helpers
+ensure_kitty_pandora_config
 
 # Setup oficial do pacote (PAM + /var/lib/noctalia-greeter + greeter.toml)
-# Path documentado em PACKAGING.md / AUR .install
+# Path documentado em PACKAGING.md / scripts/setup_greeter_system.sh
 setup_ran=0
 if id greeter &>/dev/null && [[ -s /etc/pam.d/greetd && -d /var/lib/noctalia-greeter && -s /var/lib/noctalia-greeter/greeter.toml ]]; then
   already_ok
@@ -352,7 +504,8 @@ if id greeter &>/dev/null && [[ -s /etc/pam.d/greetd && -d /var/lib/noctalia-gre
 fi
 for s in \
   /usr/share/noctalia-greeter/setup_greeter_system.sh \
-  /usr/local/share/noctalia-greeter/setup_greeter_system.sh
+  /usr/local/share/noctalia-greeter/setup_greeter_system.sh \
+  "$NOCTALIA_GREETER_SRC/scripts/setup_greeter_system.sh"
 do
   ((setup_ran == 0)) || break
   if [[ -x "$s" ]]; then

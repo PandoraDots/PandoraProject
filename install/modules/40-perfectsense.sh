@@ -20,10 +20,12 @@ if [[ ! -d "$src/.git" ]]; then
   as_user git clone --depth=1 "$PS_REPO_URL" "$src"
 fi
 
-# Build as user with PERFECTSENSE_SRC
+# Build as user with PERFECTSENSE_SRC (all cores via MAKEFLAGS/NINJAFLAGS).
+ensure_repo_build_parallelism "$src" || true
 (
   cd "$src/packaging/arch"
-  as_user env PERFECTSENSE_SRC="$src" makepkg --noconfirm --syncdeps
+  # shellcheck disable=SC2046
+  as_user env PERFECTSENSE_SRC="$src" $(pandora_build_job_env) makepkg --noconfirm --syncdeps
 )
 
 # Inspect metadata: the newest archive may be perfectsense-debug.

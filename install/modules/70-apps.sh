@@ -63,7 +63,10 @@ install_concord_from_git() {
   fi
   if [[ -f "$src/Cargo.toml" ]]; then
     pac_install alsa-lib pkgconf || return 1
-    as_user bash -lc 'cd "$1" && cargo install --path . --locked' bash "$src" || return 1
+    ensure_repo_build_parallelism "$src" || true
+    # shellcheck disable=SC2046
+    as_user env $(pandora_build_job_env) \
+      bash -lc 'cd "$1" && cargo install --path . --locked' bash "$src" || return 1
     ok "Concord via cargo (yPerfectBR/concord)"
     return 0
   fi
@@ -111,7 +114,10 @@ install_sung() {
     as_user git clone --depth=1 "$SUNG_REPO_URL" "$src" || return 1
   fi
   if ! native_binary_ready "$src/build/sung" || [[ ! -s "$src/build/cmake_install.cmake" ]]; then
-    as_user bash "$src/scripts/build.sh" || return 1
+    ensure_repo_build_parallelism "$src" || true
+    # Sung build.sh defaults to SUNG_BUILD_JOBS=4; override to all cores.
+    # shellcheck disable=SC2046
+    as_user env $(pandora_build_job_env) bash "$src/scripts/build.sh" || return 1
   else
     log "Reutilizando build validado do Sung"
   fi

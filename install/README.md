@@ -19,21 +19,24 @@ Documentação seguida:
 
 ## Versões alvo (matriz Pandora)
 
-| Componente | Pacote | Alvo verificado | Notas |
-|------------|--------|-----------------|-------|
-| Shell | `noctalia` (extra) | **≥ 5.1.0** | Editor de região no print; sync constrained com greeter 1.5 |
-| Greeter | `noctalia-greeter` (AUR) | **≥ 1.5.0** | `passwordless-sync` + Polkit `--sync` |
-| Compositor | `umbriel-git` (AUR) | **rolling** | Reaplicar módulo 50 após rebuild (`umbriel validate`) |
+| Componente | Origem (fork Pandora) | Alvo verificado | Notas |
+|------------|------------------------|-----------------|-------|
+| Shell | [`yPerfectBR/noctalia`](https://github.com/yPerfectBR/noctalia) | **≥ 5.1.0** | Fork de `noctalia-dev/noctalia`; sync constrained com greeter 1.5 |
+| Greeter | [`yPerfectBR/noctalia-greeter`](https://github.com/yPerfectBR/noctalia-greeter) | **≥ 1.5.0** | Fork de `noctalia-dev/noctalia-greeter` |
+| Compositor | [`yPerfectBR/umbriel`](https://github.com/yPerfectBR/umbriel) | **rolling** | Fork de `noctalia-dev/umbriel`; `umbriel validate` |
+| Portal | [`yPerfectBR/xdg-desktop-portal-umbriel`](https://github.com/yPerfectBR/xdg-desktop-portal-umbriel) | **rolling** | Fork de `noctalia-dev/xdg-desktop-portal-umbriel` |
 
-Atualização segura da stack:
+Atualização e compilação da stack:
 
 ```bash
-# Pacotes oficiais + AUR tip do Umbriel, depois repara configs Pandora
-# (a flag sobrevive ao sudo; `VAR=1 sudo …` NÃO passa VAR ao root)
+# Clona/atualiza ~/Noctalia/* a partir dos forks yPerfectBR e compila (meson → /usr)
+sudo ./install/install.sh 50-noctalia-stack
+
+# Limpa build/, force-sync origin/main dos forks e recompila do zero:
 sudo ./install/install.sh --refresh-stack 50-noctalia-stack
 ```
 
-Sem a flag, o módulo **não** recompila `umbriel-git` se já estiver instalado (rápido/idempotente), mas sempre reaplica visual, keybinds, `pandora.toml` e valida o Umbriel — isso é o que evita quebra após upgrades manuais (`paru -S umbriel-git`).
+Sem `--refresh-stack`, o Ninja faz build incremental e o `ensure_source_repo` só faz fast-forward se o working tree permitir. O módulo reaplica visual, keybinds, `pandora.toml` e valida o Umbriel.
 
 **Importante (Sync):** o instalador só grava `user`/`session` em `greeter.toml`. Não escreve `[appearance.palette]` — isso bloquearia wallpaper/palette vindos do Sync (`greeter.toml` vence `sync.toml`).
 
@@ -80,7 +83,7 @@ Para escolher outro diretório: `sudo env PANDORA_LOG_DIR=/caminho/logs ./instal
 
 ## O que o módulo Noctalia faz (revisão docs)
 
-1. Instala `noctalia` (extra), `umbriel-git` + portal, `noctalia-greeter`, `greetd`, `accountsservice`
+1. Instala dependências oficiais e compila localmente a stack (`umbriel`, `xdg-desktop-portal-umbriel`, `noctalia`, `noctalia-greeter`)
 2. Roda `/usr/share/noctalia-greeter/setup_greeter_system.sh` (PAM + state dir)
 3. `/etc/greetd/config.toml` → `command = "/usr/bin/noctalia-greeter-session"` (path completo)
 4. `greeter.toml` → `[user].default` + `[session].default = "Umbriel"` (`Name=` do `.desktop`)
@@ -92,30 +95,35 @@ Para escolher outro diretório: `sudo env PANDORA_LOG_DIR=/caminho/logs ./instal
 10. Noctalia declarative: `~/.config/noctalia/pandora.toml` (bar layout, control center full sidebar, theme wallpaper/Oxocarbon, widgets) + wallpaper em `~/Pictures/Wallpapers/`; remove das GUI overrides (`settings.toml`) as tabelas cobertas para o config vencer.
 11. Desabilita outros DMs; habilita `greetd` + `accounts-daemon`
 12. Tenta `noctalia-greeter passwordless-sync enable <user>` (greeter ≥ 1.5 + Noctalia ≥ 5.1)
-13. Com `--refresh-stack`, força refresh de `noctalia` / `noctalia-greeter` / `umbriel-git` antes de reparar configs
+13. Com `--refresh-stack`, limpa `build/` e recompila todos os repositórios locais do zero antes de reparar configs
 
 ## Módulos
 
 | # | Arquivo | O que faz |
 |---|---------|-----------|
-| 00 | `preflight` | multilib, zen headers, base, pipewire, mesa |
-| 10 | `system-tuning` | pacman Color/ILoveCandy/ParallelDownloads=8, makepkg -j6, zram, fstrim, paccache, IPv4, fonts, bash history-search, teclado **br-abnt2** |
+| 00 | `preflight` | sync DB, multilib, **paru**, pacman/makepkg em **todos os cores** (só durante o install), zen headers, base, pipewire, mesa |
+| 10 | `system-tuning` | pacman Color/ILoveCandy, zram, fstrim, paccache, IPv4, fonts, bash history-search, teclado **br-abnt2** |
 | 20 | `bootloader` | timeout **0** |
-| 30 | `gpu-hybrid` | open-dkms, EnvyControl **hybrid**, GameMode (só pacote), OBS NVIDIA wrapper, `acpi_backlight=native` + blacklist `nvidia_wmi_ec_backlight` |
-| 40 | `perfectsense` | clone + makepkg |
+| 30 | `gpu-hybrid` | open-dkms, EnvyControl **hybrid**, RTD3 (`NVreg_DynamicPowerManagement=0x02` + udev + reload), session iGPU (GL/EGL/Vulkan), `nvidia-persistenced` masked, `nvidia-powerd` on-demand via `prime-run`, GameMode (só pacote), OBS NVIDIA wrapper, `acpi_backlight=native` + blacklist `nvidia_wmi_ec_backlight`, oneshot PM check (self-disable) |
+| 40 | `perfectsense` | clone + makepkg (todos os cores) |
 | 50 | `noctalia-stack` | stack acima |
-| 60 | `dev` | vim, node, .NET 8+10, Rider, C/C++, Rust, Cursor |
-| 70 | `apps` | codecs, VLC, Dolphin, Steam, Heroic, Stremio, Concord, Sung, Hydra, … |
-| 80 | `finalize` | PATH local, lembretes |
+| 60 | `dev` | vim, node, .NET 8+10, Rider, C/C++, Rust, Cursor (wrapper iGPU com PCI detectado) |
+| 70 | `apps` | codecs, VLC, Dolphin, Steam, Heroic, Stremio, Concord (cargo jobs), Sung (`SUNG_BUILD_JOBS=nproc`), Hydra, … |
+| 80 | `finalize` | PATH local, paru ok, **makepkg -j6 / ParallelDownloads=8** (modo steady), lembretes |
 
-**Fora:** Ananicy-Cpp, `nvidia-persistenced`, config profunda do GameMode, hostname/locale/tz.
+**Fora:** Ananicy-Cpp, config profunda do GameMode, hostname/locale/tz, `fuse2` (AppImage sob demanda).
 
 ## GPU
 
 - Desktop/WM na **iGPU** (Umbriel ignora PCI NVIDIA quando a Intel está visível)
-- Jogos / OBS / Concord stream: `prime-run` / `obs-nvidia` / `concord-nvidia`
+- Sessão inteira em Mesa/Intel via `/etc/environment.d/90-pandora-igpu.conf` (GLX/EGL/Vulkan + `NVIDIA_VISIBLE_DEVICES=void`) — Electron/Chromium herdam sem wrapper por app
+- Jogos / OBS / Concord stream: `prime-run` / `obs-nvidia` / `concord-nvidia` (limpa os pins e sobe Dynamic Boost)
+- `nvidia-powerd`: **desligado no boot**; `prime-run` inicia; timer idle para quando a dGPU está `suspended`
+- `nvidia-persistenced`: **masked** (impede RTD3)
+- dGPU ociosa: RTD3 fine-grained (`NVreg_DynamicPowerManagement=0x02`); confira com `cat /sys/bus/pci/devices/0000:01:00.0/power/runtime_status` → `suspended`
 - EnvyControl: **hybrid**
-- Brilho no híbrido: `acpi_backlight=native` + blacklist do `nvidia_wmi_ec_backlight` (evita sysfs “falso” que não altera o painel na iGPU)
+- Brilho no híbrido: `acpi_backlight=native` + blacklist do `nvidia_wmi_ec_backlight`
+- Clientes que **seguram** a dGPU acordada: `btop`/`nvtop`/`nvidia-smi`, e o card GPU do painel System (Noctalia) aberto — feche-os para ela dormir
 
 ## Teclado
 

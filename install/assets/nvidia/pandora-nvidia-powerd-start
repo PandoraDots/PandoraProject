@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Pandora: start Dynamic Boost (nvidia-powerd) only while the dGPU is in use.
+# Called from prime-run; NOPASSWD via /etc/sudoers.d/pandora-nvidia-powerd.
+set -euo pipefail
+if systemctl is-active --quiet nvidia-powerd.service 2>/dev/null; then
+  exit 0
+fi
+exec /usr/bin/sudo -n /usr/bin/systemctl start nvidia-powerd.service

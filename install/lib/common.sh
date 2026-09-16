@@ -8,6 +8,11 @@ export INSTALL_ROOT
 # shellcheck disable=SC2034
 readonly PS_REPO_URL="${PS_REPO_URL:-https://github.com/yPerfectBR/PerfectSense.git}"
 readonly SUNG_REPO_URL="${SUNG_REPO_URL:-https://github.com/yappologistic/Sung.git}"
+# Pandora usa forks yPerfectBR (espelhos do noctalia-dev) para patches e builds.
+readonly NOCTALIA_REPO_URL="${NOCTALIA_REPO_URL:-https://github.com/yPerfectBR/noctalia.git}"
+readonly NOCTALIA_GREETER_REPO_URL="${NOCTALIA_GREETER_REPO_URL:-https://github.com/yPerfectBR/noctalia-greeter.git}"
+readonly UMBRIEL_REPO_URL="${UMBRIEL_REPO_URL:-https://github.com/yPerfectBR/umbriel.git}"
+readonly PORTAL_REPO_URL="${PORTAL_REPO_URL:-https://github.com/yPerfectBR/xdg-desktop-portal-umbriel.git}"
 readonly BUILD_DIR="${BUILD_DIR:-/tmp/pandora-noctalia-build}"
 readonly AUR_CACHE="${AUR_CACHE:-$BUILD_DIR/aur}"
 
@@ -43,6 +48,84 @@ as_user() {
   else
     env HOME="$REAL_HOME" USER="$REAL_USER" LOGNAME="$REAL_USER" "$@"
   fi
+}
+
+resolve_stack_paths() {
+  resolve_user
+  local base="${NOCTALIA_BASE_DIR:-$REAL_HOME/Noctalia}"
+  as_user mkdir -p "$base" 2>/dev/null || mkdir -p "$base" 2>/dev/null || true
+  chown "$REAL_UID:$REAL_GID" "$base" 2>/dev/null || true
+
+  # Se já existirem repositórios soltos na raiz de $REAL_HOME (ex: ambiente prévio),
+  # migra-os de forma transparente para ~/Noctalia se ainda não existirem lá
+  local repo
+  for repo in noctalia noctalia-greeter umbriel xdg-desktop-portal-umbriel; do
+    if [[ ! -e "$base/$repo" && -d "$REAL_HOME/$repo/.git" ]]; then
+      log "Organizando repositório solto: $REAL_HOME/$repo → $base/$repo"
+      as_user mv "$REAL_HOME/$repo" "$base/$repo" 2>/dev/null || mv "$REAL_HOME/$repo" "$base/$repo" 2>/dev/null || true
+      chown -R "$REAL_UID:$REAL_GID" "$base/$repo" 2>/dev/null || true
+    fi
+  done
+
+  NOCTALIA_SRC="${NOCTALIA_SRC:-$base/noctalia}"
+  NOCTALIA_GREETER_SRC="${NOCTALIA_GREETER_SRC:-$base/noctalia-greeter}"
+  UMBRIEL_SRC="${UMBRIEL_SRC:-$base/umbriel}"
+  PORTAL_SRC="${PORTAL_SRC:-$base/xdg-desktop-portal-umbriel}"
+  export NOCTALIA_BASE_DIR="$base" NOCTALIA_SRC NOCTALIA_GREETER_SRC UMBRIEL_SRC PORTAL_SRC
+}
+
+# Normalize github remote URLs for comparison (strip .git / trailing slash).
+_git_remote_norm() {
+  local u="${1%.git}"
+  u="${u%/}"
+  printf '%s' "$u"
+}
+
+ensure_source_repo() {
+  local target_dir="$1"
+  local repo_url="$2"
+  local branch="${3:-main}"
+  local current want
+  resolve_user
+  want="$(_git_remote_norm "$repo_url")"
+
+  if [[ -d "$target_dir/.git" ]]; then
+    current="$(as_user git -C "$target_dir" remote get-url origin 2>/dev/null || true)"
+    if [[ -n "$current" && "$(_git_remote_norm "$current")" != "$want" ]]; then
+      log "Retarget origin → $repo_url ($target_dir)"
+      as_user git -C "$target_dir" remote set-url origin "$repo_url" \
+        || warn "Falha ao retarget origin em $target_dir"
+    fi
+    # Sempre busca o tip do fork; com --refresh-stack força reset hard na branch.
+    if as_user git -C "$target_dir" fetch --prune origin "$branch" 2>/dev/null; then
+      if [[ "${PANDORA_REFRESH_STACK:-0}" == "1" ]]; then
+        log "Sync hard $target_dir → origin/$branch (refresh-stack)"
+        as_user git -C "$target_dir" checkout -B "$branch" "origin/$branch" \
+          || as_user git -C "$target_dir" reset --hard "origin/$branch" \
+          || warn "reset hard falhou em $target_dir"
+      else
+        if as_user git -C "$target_dir" merge-base --is-ancestor HEAD "origin/$branch" 2>/dev/null \
+          && ! as_user git -C "$target_dir" merge-base --is-ancestor "origin/$branch" HEAD 2>/dev/null; then
+          log "Fast-forward $target_dir → origin/$branch"
+          as_user git -C "$target_dir" merge --ff-only "origin/$branch" \
+            || warn "ff-only falhou em $target_dir (working tree suja?)"
+        fi
+      fi
+    else
+      warn "fetch origin/$branch falhou em $target_dir"
+    fi
+    ok "Fonte pronta: $target_dir ← $repo_url"
+    return 0
+  fi
+
+  log "Clonando repositório ($repo_url) → $target_dir"
+  as_user mkdir -p "$(dirname "$target_dir")" || return 1
+  if ! as_user git clone -b "$branch" "$repo_url" "$target_dir"; then
+    log "Tentando clone padrão sem branch..."
+    as_user git clone "$repo_url" "$target_dir" || return 1
+  fi
+  chown -R "$REAL_UID:$REAL_GID" "$target_dir"
+  ok "Repositório pronto: $target_dir"
 }
 
 pkg_installed() {
@@ -83,7 +166,8 @@ ensure_paru() {
     as_user git clone --depth=1 https://aur.archlinux.org/paru.git "$AUR_CACHE/paru" || return 1
   fi
   # Build as user, install as root
-  (cd "$AUR_CACHE/paru" && as_user makepkg --noconfirm) || return 1
+  # shellcheck disable=SC2046
+  (cd "$AUR_CACHE/paru" && as_user env $(pandora_build_job_env) makepkg --noconfirm) || return 1
   install_built_package paru "$AUR_CACHE/paru" || return 1
   configure_paru
 }
@@ -107,6 +191,153 @@ configure_paru() {
   install_if_changed 644 "$tmp" "$conf" || { rm -f "$tmp"; return 1; }
   chown "$REAL_UID:$REAL_GID" "$conf"
   rm -f "$tmp"
+}
+
+# Steady day-to-day makepkg parallelism after the install finishes.
+PANDORA_MAKEPKG_STEADY_JOBS=6
+PANDORA_PACMAN_STEADY_DOWNLOADS=8
+
+# Color + ILoveCandy in pacman.conf (idempotent).
+configure_pacman_ui() {
+  [[ -f /etc/pacman.conf ]] || return 1
+  local changed=0
+  if ! grep -qx 'Color' /etc/pacman.conf || ! grep -qx 'ILoveCandy' /etc/pacman.conf; then
+    backup_file /etc/pacman.conf
+    changed=1
+  fi
+  sed -i 's/^#Color$/Color/' /etc/pacman.conf
+  grep -qE '^Color$' /etc/pacman.conf || sed -i '/^\[options\]/a Color' /etc/pacman.conf
+  grep -qE '^ILoveCandy$' /etc/pacman.conf || sed -i '/^Color$/a ILoveCandy' /etc/pacman.conf
+  ((changed == 0)) && already_ok
+  return 0
+}
+
+# Parallel package fetches (not compile threads). Higher during install, steady after.
+set_pacman_parallel_downloads() {
+  local n="${1:?}"
+  [[ -f /etc/pacman.conf ]] || return 1
+  if grep -qxE "ParallelDownloads[[:space:]]*=[[:space:]]*${n}" /etc/pacman.conf; then
+    already_ok
+    return 0
+  fi
+  backup_file /etc/pacman.conf
+  if grep -qE '^#?ParallelDownloads' /etc/pacman.conf; then
+    sed -i "s/^#\\?ParallelDownloads.*/ParallelDownloads = ${n}/" /etc/pacman.conf
+  else
+    sed -i "/^\\[options\\]/a ParallelDownloads = ${n}" /etc/pacman.conf
+  fi
+  log "pacman ParallelDownloads = ${n}"
+}
+
+# Compile/compress parallelism for makepkg (paru AUR builds, PerfectSense, etc.).
+set_makepkg_jobs() {
+  local jobs="${1:?}"
+  local zstd_t="$jobs"
+  [[ -f /etc/makepkg.conf ]] || return 1
+  if grep -qx "MAKEFLAGS=\"-j${jobs}\"" /etc/makepkg.conf \
+    && grep -qxF "COMPRESSZST=(zstd -c -T${zstd_t} -)" /etc/makepkg.conf; then
+    already_ok
+    return 0
+  fi
+  backup_file /etc/makepkg.conf
+  if grep -qE '^#?MAKEFLAGS=' /etc/makepkg.conf; then
+    sed -i "s/^#\\?MAKEFLAGS=.*/MAKEFLAGS=\"-j${jobs}\"/" /etc/makepkg.conf
+  else
+    printf '\nMAKEFLAGS="-j%s"\n' "$jobs" >>/etc/makepkg.conf
+  fi
+  if grep -qE '^COMPRESSZST=' /etc/makepkg.conf; then
+    sed -i "s/^COMPRESSZST=.*/COMPRESSZST=(zstd -c -T${zstd_t} -)/" /etc/makepkg.conf
+  else
+    printf 'COMPRESSZST=(zstd -c -T%s -)\n' "$zstd_t" >>/etc/makepkg.conf
+  fi
+  log "makepkg MAKEFLAGS=-j${jobs} COMPRESSZST=-T${zstd_t}"
+}
+
+# Full machine for the install run: all CPU threads + aggressive downloads.
+configure_build_parallelism_install() {
+  local jobs downloads
+  jobs="$(nproc 2>/dev/null || echo 6)"
+  downloads="$jobs"
+  ((downloads < 8)) && downloads=8
+  configure_pacman_ui
+  set_pacman_parallel_downloads "$downloads"
+  set_makepkg_jobs "$jobs"
+}
+
+# After builds finish: cooler steady defaults for daily use.
+configure_build_parallelism_steady() {
+  configure_pacman_ui
+  set_pacman_parallel_downloads "$PANDORA_PACMAN_STEADY_DOWNLOADS"
+  set_makepkg_jobs "$PANDORA_MAKEPKG_STEADY_JOBS"
+}
+
+# CPU jobs for cloned-source builds (Sung/Concord/PerfectSense, etc.).
+pandora_build_jobs() {
+  nproc 2>/dev/null || echo "${PANDORA_MAKEPKG_STEADY_JOBS:-6}"
+}
+
+# Env vars common build tools honor (makepkg already uses MAKEFLAGS from /etc).
+pandora_build_job_env() {
+  local jobs
+  jobs="$(pandora_build_jobs)"
+  printf 'MAKEFLAGS=-j%s CMAKE_BUILD_PARALLEL_LEVEL=%s CARGO_BUILD_JOBS=%s SUNG_BUILD_JOBS=%s NINJAFLAGS=-j%s' \
+    "$jobs" "$jobs" "$jobs" "$jobs" "$jobs"
+}
+
+# Cargo: write jobs into .cargo/config.toml only when the repo has no jobs= yet.
+ensure_cargo_build_jobs() {
+  local src="${1:?}"
+  local jobs="${2:-$(pandora_build_jobs)}"
+  local cfg_dir cfg tmp
+  [[ -f "$src/Cargo.toml" ]] || return 0
+  resolve_user
+  cfg_dir="$src/.cargo"
+  if [[ -f "$cfg_dir/config.toml" ]]; then
+    cfg="$cfg_dir/config.toml"
+  elif [[ -f "$cfg_dir/config" ]]; then
+    cfg="$cfg_dir/config"
+  else
+    cfg="$cfg_dir/config.toml"
+  fi
+  if [[ -f "$cfg" ]] && grep -qE '^[[:space:]]*jobs[[:space:]]*=' "$cfg"; then
+    already_ok
+    return 0
+  fi
+  mkdir -p "$cfg_dir" || return 1
+  chown "$REAL_UID:$REAL_GID" "$cfg_dir"
+  tmp="$(mktemp)" || return 1
+  if [[ ! -f "$cfg" ]]; then
+    printf '[build]\njobs = %s\n' "$jobs" >"$tmp"
+  elif grep -qE '^[[:space:]]*\[build\]' "$cfg"; then
+    awk -v jobs="$jobs" '
+      /^[[:space:]]*\[build\][[:space:]]*$/ && !done {
+        print; print "jobs = " jobs; done=1; next
+      }
+      { print }
+      END { if (!done) print "\n[build]\njobs = " jobs }
+    ' "$cfg" >"$tmp"
+  else
+    cat "$cfg" >"$tmp"
+    printf '\n[build]\njobs = %s\n' "$jobs" >>"$tmp"
+  fi
+  install_if_changed 644 "$tmp" "$cfg" || { rm -f "$tmp"; return 1; }
+  chown "$REAL_UID:$REAL_GID" "$cfg"
+  rm -f "$tmp"
+  log "cargo jobs=${jobs} → ${cfg}"
+}
+
+# Cloned repos: fill missing per-project parallelism (Cargo today; env covers CMake/meson).
+ensure_repo_build_parallelism() {
+  local src="${1:?}"
+  local jobs
+  jobs="$(pandora_build_jobs)"
+  [[ -d "$src" ]] || return 1
+  if [[ -f "$src/Cargo.toml" ]]; then
+    ensure_cargo_build_jobs "$src" "$jobs" || return 1
+  fi
+  # Sung scripts/build.sh defaults to 4; callers must pass SUNG_BUILD_JOBS via
+  # pandora_build_job_env when invoking the build.
+  return 0
 }
 
 pac_install() {
@@ -147,7 +378,8 @@ aur_install() {
     ensure_paru || return 1
     log "paru -S: ${missing[*]}"
     # paru as user; it will sudo for install
-    as_user paru -S --noconfirm --skipreview "${missing[@]}"
+    # shellcheck disable=SC2046
+    as_user env $(pandora_build_job_env) paru -S --noconfirm --skipreview "${missing[@]}"
   fi
 }
 

@@ -222,6 +222,7 @@ follows_mouse = false
         self.assertIn('whatsapp com.rtosta.zapzap --', kb['Mod+A'])
         self.assertIn('pandora-kitty-shell', kb['Mod+T'])
         self.assertIn('kitty', kb['Mod+T'])
+        self.assertIn('confirm_os_window_close=0', kb['Mod+T'])
         self.assertNotIn('pandora-terminal', kb['Mod+T'])
         self.assertEqual(kb['Mod+Alt+R'], 'window-toggle-floating')
         self.assertEqual(kb['Mod+Alt+F'], 'window-toggle-maximize-to-edges')
@@ -243,7 +244,11 @@ follows_mouse = false
         self.assertEqual({r['default_scratchpad'] for r in scratch_rules}, {'concord', 'sung', 'whatsapp'})
         whatsapp_rule = next(r for r in scratch_rules if r['default_scratchpad'] == 'whatsapp')
         self.assertEqual(whatsapp_rule['match']['app_id'], '^com[.]rtosta[.]zapzap$')
-        self.assertTrue(data['animation']['scratchpad']['maximize'])
+        self.assertFalse(data['animation']['scratchpad']['maximize'])
+        self.assertAlmostEqual(
+            data['animation']['scratchpad']['scale'],
+            repair.pandora_scratchpad_scale(),
+        )
         for rule in scratch_rules:
             self.assertTrue(rule.get('default_maximize'), rule)
         # Idempotent on parsed config (blank-line layout may normalize once).

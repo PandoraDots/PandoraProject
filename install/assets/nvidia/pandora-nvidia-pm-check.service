@@ -1,0 +1,12 @@
+[Unit]
+Description=Pandora NVIDIA PM first-boot verify (self-disables)
+After=multi-user.target
+ConditionPathExists=/etc/modprobe.d/nvidia.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/pandora/nvidia-pm-check.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

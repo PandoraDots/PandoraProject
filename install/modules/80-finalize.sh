@@ -25,6 +25,11 @@ fi
 ensure_paru || true
 configure_paru || true
 
+# Dial build parallelism back to steady daily defaults (install used all cores).
+log "Paralelismo steady → makepkg -j${PANDORA_MAKEPKG_STEADY_JOBS}, ParallelDownloads=${PANDORA_PACMAN_STEADY_DOWNLOADS}"
+configure_build_parallelism_steady
+ok "pacman/makepkg em modo steady (dia a dia)"
+
 cat <<EOF
 
 ╔══════════════════════════════════════════════════════════════╗
@@ -32,7 +37,7 @@ cat <<EOF
 ╠══════════════════════════════════════════════════════════════╣
 ║  Usuário:   $REAL_USER                                       ║
 ║  Sessão:    Umbriel + Noctalia (greetd / noctalia-greeter)   ║
-║  GPU:       EnvyControl hybrid + prime-run / obs-nvidia      ║
+║  GPU:       hybrid + RTD3; prime-run (+ Dynamic Boost on-demand) ║
 ║  Kernel:    linux-zen + nvidia-open-dkms (assumido)          ║
 ║                                                              ║
 ║  Próximos passos:                                            ║

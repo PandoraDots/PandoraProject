@@ -56,7 +56,13 @@ major_interval = 4
 visible = true
 
 [plugins]
-enabled = ["noctalia/umbriel-companion"]
+enabled = ["noctalia/umbriel-companion", "perfect/perfect-wallpapers"]
+
+[[plugins.source]]
+name = "perfect-wallpapers-dev"
+kind = "path"
+location = "@HOME@/Documents/Projects/community-plugins"
+enabled = true
 
 [shell.panel]
 launcher_position = "bottom_center"

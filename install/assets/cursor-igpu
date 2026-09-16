@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Pandora: run Cursor/Electron on Intel (Mesa) so NVIDIA RTD3 can suspend.
+set -euo pipefail
+envf="${XDG_CONFIG_HOME:-$HOME/.config}/pandora/cursor-igpu-env.sh"
+if [[ -f "$envf" ]]; then
+  # shellcheck source=/dev/null
+  source "$envf"
+else
+  export __GLX_VENDOR_LIBRARY_NAME=mesa
+  export __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json
+  export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/intel_icd.json
+  export MESA_VK_DEVICE_SELECT=8086:a788!
+  export DRI_PRIME=pci-0000_00_02_0
+  export __NV_PRIME_RENDER_OFFLOAD=0
+  unset __VK_LAYER_NV_optimus 2>/dev/null || true
+  export CUDA_VISIBLE_DEVICES=
+  export NVIDIA_VISIBLE_DEVICES=void
+fi
+exec /usr/share/cursor/cursor "$@"

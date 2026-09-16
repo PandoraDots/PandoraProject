@@ -1,0 +1,7 @@
+[Unit]
+Description=Pandora: stop nvidia-powerd when dGPU is RTD3-suspended
+After=nvidia-powerd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/pandora/nvidia-powerd-idle.sh

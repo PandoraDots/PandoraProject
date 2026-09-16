@@ -1,0 +1,21 @@
+[Desktop Entry]
+Name=Cursor
+Comment=The AI Code Editor (Intel iGPU — Pandora)
+GenericName=Text Editor
+Exec=@HOME@/.local/bin/cursor %F
+Icon=cursor
+Type=Application
+StartupNotify=false
+StartupWMClass=Cursor
+Categories=TextEditor;Development;IDE;
+MimeType=application/x-cursor-workspace;
+Actions=new-empty-window;
+Keywords=cursor;
+
+[Desktop Action new-empty-window]
+Name=New Empty Window
+Name[ja]=新しい空のウィンドウ
+Name[zh_CN]=新建空窗口
+Name[zh_TW]=開新空視窗
+Exec=@HOME@/.local/bin/cursor --new-window %F
+Icon=cursor

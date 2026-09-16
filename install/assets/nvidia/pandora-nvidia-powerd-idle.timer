@@ -1,0 +1,12 @@
+[Unit]
+Description=Pandora: poll dGPU idle to stop nvidia-powerd
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=30s
+Persistent=true
+Unit=pandora-nvidia-powerd-idle.service
+
+[Install]
+WantedBy=timers.target

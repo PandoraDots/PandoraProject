@@ -139,6 +139,17 @@ CAELESTIA_WINDOW_RULE = {
     "blur_optimized": False,
 }
 
+# Scratchpad inset ≈ 2× layout.gap, via centered scale (Umbriel has no per-pad gaps).
+# scale = 1 - 4*gap/ref_h → ~10 px margins on a 1600-tall usable area when gap=5.
+PANDORA_LAYOUT_GAP = 5
+PANDORA_SCRATCHPAD_SCALE_REF_H = 1600
+
+
+def pandora_scratchpad_scale(gap=PANDORA_LAYOUT_GAP):
+    raw = 1.0 - (4.0 * float(gap)) / float(PANDORA_SCRATCHPAD_SCALE_REF_H)
+    return max(0.1, min(1.0, round(raw, 3)))
+
+
 # Named scratchpads replace the implicit "default"; general keeps Mod+Space.
 # Firefox is a plain spawn (--new-window), not a scratchpad.
 PANDORA_SCRATCHPADS = ("general", "concord", "sung", "whatsapp")
@@ -171,10 +182,11 @@ def _helper_bin(name):
 
 def _abs_cmd(name):
     home = pathlib.Path.home()
+    # Prefer user wrappers (e.g. cursor → Intel-only) over /usr/bin.
     for candidate in (
-        pathlib.Path("/usr/bin") / name,
-        pathlib.Path("/usr/local/bin") / name,
         home / ".local/bin" / name,
+        pathlib.Path("/usr/local/bin") / name,
+        pathlib.Path("/usr/bin") / name,
     ):
         if candidate.is_file() and os.access(candidate, os.X_OK):
             return str(candidate)
@@ -191,7 +203,8 @@ def pandora_keybinds():
     firefox = _abs_cmd("firefox")
     cursor = _abs_cmd("cursor")
     # Spawn Kitty itself; fastfetch via -o shell= (not kitty -e bash).
-    terminal = f"{kitty} -o shell={kitty_shell}"
+    # confirm_os_window_close=0: allow rapid Mod+T open/close without the Yes/No dialog.
+    terminal = f"{kitty} -o shell={kitty_shell} -o confirm_os_window_close=0"
     binds = {
         "Mod+C": f'"spawn:{cursor}"',
         "Mod+D": f'"spawn:{scratch} concord concord -- {kitty} --app-id=concord -e {concord}"',
@@ -390,9 +403,10 @@ def apply_pandora_keybinds(text):
     # Default tiling: dwindle; alone window maximized (not a centered underfull strip).
     text = set_key(text, "layout", "mode", "dwindle")
     text = ensure_alone_maximize_rule(text)
-    # Concord/Sung/ZapZap scratchpads: maximize to usable edges when shown.
-    # (Per-window maximize is cleared on scratchpad entry; this re-applies it.)
-    text = set_key(text, "animation.scratchpad", "maximize", True)
+    # Scratchpads stay near-fullscreen but inset ~2× layout.gap (charm vs edge flush).
+    # maximize-to-edges would ignore gaps; centered scale recreates the padded look.
+    text = set_key(text, "animation.scratchpad", "maximize", False)
+    text = set_key(text, "animation.scratchpad", "scale", pandora_scratchpad_scale())
     text = remove_scratchpads(text, PANDORA_REMOVE_SCRATCHPADS)
     text = remove_scratch_window_rules(text, PANDORA_REMOVE_SCRATCH_PADS_FROM_RULES)
     text = ensure_scratchpads(text, PANDORA_SCRATCHPADS)

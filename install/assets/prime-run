@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Pandora: prime-run — NVIDIA offload + clear Mesa/iGPU session pins + Dynamic Boost on demand.
+export __NV_PRIME_RENDER_OFFLOAD=1
+export __VK_LAYER_NV_optimus=NVIDIA_only
+export __GLX_VENDOR_LIBRARY_NAME=nvidia
+export __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json
+unset VK_ICD_FILENAMES MESA_VK_DEVICE_SELECT DRI_PRIME CUDA_VISIBLE_DEVICES NVIDIA_VISIBLE_DEVICES
+unset __NV_PRIME_RENDER_OFFLOAD_PROVIDER
+
+# Dynamic Boost (nvidia-powerd) only while dGPU work is starting. Idle timer stops it
+# once every NVIDIA display function reports runtime suspended.
+if [[ -x /usr/local/lib/pandora/nvidia-powerd-start ]]; then
+  /usr/local/lib/pandora/nvidia-powerd-start 2>/dev/null || true
+fi
+
+exec "$@"

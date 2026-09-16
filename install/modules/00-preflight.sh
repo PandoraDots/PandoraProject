@@ -18,6 +18,12 @@ pacman -Sy --noconfirm
 
 enable_multilib
 
+# Max parallelism for the whole install (makepkg/paru/pacman). Dialed back in 80-finalize.
+log "Paralelismo de build/install → todos os cores ($(nproc 2>/dev/null || echo '?'))"
+configure_build_parallelism_install
+ensure_paru || die "paru é necessário para o restante do install (AUR)"
+ok "paru pronto + pacman/makepkg em modo install (todos os cores)"
+
 # Assumptions from archinstall
 if ! pkg_installed linux-zen; then
   warn "linux-zen não instalado — archinstall deveria tê-lo colocado. Instalando..."

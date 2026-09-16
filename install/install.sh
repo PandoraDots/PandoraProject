@@ -53,8 +53,8 @@ Uso: sudo ./install/install.sh [opções] [módulo…]
 
   (sem módulo)              roda todos os módulos na ordem
   50 | 50-noctalia-stack    só a stack Noctalia/Umbriel/Greeter
-  --refresh-stack           recompila noctalia/greeter/umbriel-git (AUR tip)
-                            antes de reparar configs (use com o módulo 50)
+  --refresh-stack           limpa build/ e recompila do zero a partir dos repos
+                            locais (ou clonados) antes de reparar configs
 
 Nota: `VAR=1 sudo ./install/...` NÃO passa VAR ao root. Prefira a flag
 ou `sudo env PANDORA_REFRESH_STACK=1 ./install/install.sh 50`.

@@ -6,42 +6,15 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/common.sh"
 need_root
 resolve_user
 
-if grep -qx 'Color' /etc/pacman.conf && grep -qx 'ILoveCandy' /etc/pacman.conf && grep -qxE 'ParallelDownloads[[:space:]]*=[[:space:]]*8' /etc/pacman.conf; then
+if grep -qx 'Color' /etc/pacman.conf && grep -qx 'ILoveCandy' /etc/pacman.conf; then
   already_ok
 else
-log "Ajustando /etc/pacman.conf (Color + ILoveCandy + ParallelDownloads=8)"
-backup_file /etc/pacman.conf
-# Color
-sed -i 's/^#Color$/Color/' /etc/pacman.conf
-grep -qE '^Color$' /etc/pacman.conf || sed -i '/^\[options\]/a Color' /etc/pacman.conf
-# ILoveCandy
-grep -qE '^ILoveCandy$' /etc/pacman.conf || sed -i '/^Color$/a ILoveCandy' /etc/pacman.conf
-# ParallelDownloads
-if grep -qE '^#?ParallelDownloads' /etc/pacman.conf; then
-  sed -i 's/^#\?ParallelDownloads.*/ParallelDownloads = 8/' /etc/pacman.conf
-else
-  sed -i '/^\[options\]/a ParallelDownloads = 8' /etc/pacman.conf
+  log "Ajustando /etc/pacman.conf (Color + ILoveCandy)"
+  configure_pacman_ui
 fi
 
-fi
-
-if grep -qx 'MAKEFLAGS="-j6"' /etc/makepkg.conf && grep -qxF 'COMPRESSZST=(zstd -c -T6 -)' /etc/makepkg.conf; then
-  already_ok
-else
-log "Ajustando /etc/makepkg.conf (-j6, zstd -T6)"
-backup_file /etc/makepkg.conf
-if grep -qE '^#?MAKEFLAGS=' /etc/makepkg.conf; then
-  sed -i 's/^#\?MAKEFLAGS=.*/MAKEFLAGS="-j6"/' /etc/makepkg.conf
-else
-  printf '\nMAKEFLAGS="-j6"\n' >>/etc/makepkg.conf
-fi
-if grep -qE "^COMPRESSZST=" /etc/makepkg.conf; then
-  sed -i 's/^COMPRESSZST=.*/COMPRESSZST=(zstd -c -T6 -)/' /etc/makepkg.conf
-else
-  printf 'COMPRESSZST=(zstd -c -T6 -)\n' >>/etc/makepkg.conf
-fi
-
-fi
+# MAKEFLAGS / ParallelDownloads: full machine during install (00-preflight),
+# steady -j6 / Downloads=8 applied in 80-finalize after all builds.
 
 log "zram via systemd-zram-generator"
 pac_install zram-generator
