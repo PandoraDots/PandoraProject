@@ -347,13 +347,11 @@ build_and_install_umbriel() {
 
 build_and_install_portal() {
   resolve_stack_paths
-  if [[ ! -d "$PORTAL_SRC/.git" ]]; then
-    log "Verificando repositório xdg-desktop-portal-umbriel..."
-    if ! ensure_source_repo "$PORTAL_SRC" "$PORTAL_REPO_URL"; then
-      warn "Clone de xdg-desktop-portal-umbriel falhou — tentando instalar via AUR..."
-      install_prefer xdg-desktop-portal-umbriel-git || true
-      return 0
-    fi
+  log "Verificando repositório xdg-desktop-portal-umbriel..."
+  if ! ensure_source_repo "$PORTAL_SRC" "$PORTAL_REPO_URL"; then
+    warn "Clone de xdg-desktop-portal-umbriel falhou — tentando instalar via AUR..."
+    install_prefer xdg-desktop-portal-umbriel-git || true
+    return 0
   fi
   log "Compilando xdg-desktop-portal-umbriel a partir de $PORTAL_SRC"
   local bdir="$PORTAL_SRC/build"
