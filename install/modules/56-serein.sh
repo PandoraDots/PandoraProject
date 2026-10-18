@@ -21,7 +21,7 @@ log "Serein: dependências de execução e build"
 SEREIN_DEPS=(
   rust cmake pkgconf git python desktop-file-utils
   alsa-lib dbus glib2 gst-plugin-pipewire gst-plugins-base gst-plugins-base-libs gst-plugins-good
-  gstreamer gtk4 hicolor-icon-theme libpulse libsoup3 libxkbcommon-x11 webkitgtk-6.0
+  gstreamer gst-plugins-bad gst-plugin-va gtk4 hicolor-icon-theme libpulse libsoup3 libxkbcommon-x11 webkitgtk-6.0
   xdg-desktop-portal wireproxy wireguard-tools iproute2 polkit polkit-gnome python util-linux
 )
 pac_install "${SEREIN_DEPS[@]}"
