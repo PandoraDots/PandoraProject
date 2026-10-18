@@ -103,6 +103,8 @@ build_and_install_serein() {
   # Só root o executa (pkexec/sudo); o comando final roda como o usuário que chamou.
   install -d -m 755 "$SEREIN_PREFIX/libexec"
   install_if_changed 755 "$SEREIN_SRC/packaging/linux/vpn/serein-vpn" "$SEREIN_PREFIX/libexec/serein-vpn"
+  # Agente por login: roda como o usuário dentro do namespace e só inicia o executável serein.
+  install_if_changed 755 "$SEREIN_SRC/packaging/linux/vpn/serein-vpn-agent" "$SEREIN_PREFIX/libexec/serein-vpn-agent"
   install_if_changed 644 "$SEREIN_SRC/packaging/linux/vpn/cz.viceverse.serein.vpn.policy" \
     /usr/share/polkit-1/actions/cz.viceverse.serein.vpn.policy
   update-desktop-database "$SEREIN_PREFIX/share/applications" 2>/dev/null || true
