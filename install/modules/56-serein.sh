@@ -30,23 +30,50 @@ pac_install "${SEREIN_DEPS[@]}"
 # todas elas, então passam a ser explícitas.
 pacman -D --asexplicit "${SEREIN_DEPS[@]}" >/dev/null 2>&1 || true
 
+SEREIN_UPSTREAM_URL="${SEREIN_UPSTREAM_URL:-https://github.com/ViceVerse-cz/Serein.git}"
+
+# O Serein compara a própria versão (Cargo.toml: sempre 0.1.0 nas fontes) com as releases nightly do
+# upstream e, num build local, avisaria "atualização disponível" para sempre. Descobre a release mais
+# recente cujo commit já está neste checkout e a informa ao build (SEREIN_BUILD_VERSION).
+serein_build_version() {
+  local json tag commit
+  as_user git -C "$SEREIN_SRC" remote get-url upstream >/dev/null 2>&1 \
+    || as_user git -C "$SEREIN_SRC" remote add upstream "$SEREIN_UPSTREAM_URL" >/dev/null 2>&1 || true
+  as_user git -C "$SEREIN_SRC" fetch -q upstream >/dev/null 2>&1 || true
+  json="$(curl -fsS --max-time 15 'https://api.github.com/repos/ViceVerse-cz/Serein/releases?per_page=30' 2>/dev/null)" || return 0
+  while IFS=$'\t' read -r tag commit; do
+    [[ -n "$tag" && -n "$commit" ]] || continue
+    if as_user git -C "$SEREIN_SRC" merge-base --is-ancestor "$commit" HEAD 2>/dev/null; then
+      printf '%s' "${tag#v}"
+      return 0
+    fi
+  done < <(python3 -c 'import json,sys
+for r in json.load(sys.stdin):
+    print(r.get("tag_name",""), r.get("target_commitish",""), sep="\t")' <<<"$json" 2>/dev/null)
+}
+
 build_and_install_serein() {
   ensure_source_repo "$SEREIN_SRC" "$SEREIN_REPO_URL" || die "Falha ao obter o repositório do Serein"
   local head built exe="$SEREIN_SRC/target/release/serein" probe="$SEREIN_SRC/target/release/examples/probe"
   head="$(as_user git -C "$SEREIN_SRC" rev-parse --short HEAD)"
+  local version stamp
+  version="$(serein_build_version || true)"
+  stamp="$head ${version:-unversioned}"
   built="$(cat "$SEREIN_SRC/target/.pandora-built-rev" 2>/dev/null || true)"
-  if [[ ! -x "$exe" || ! -x "$probe" || "$built" != "$head" || "${PANDORA_REFRESH_STACK:-0}" == "1" ]]; then
-    log "Compilando Serein ($head) com $(pandora_build_jobs) threads"
+  if [[ ! -x "$exe" || ! -x "$probe" || "$built" != "$stamp" || "${PANDORA_REFRESH_STACK:-0}" == "1" ]]; then
+    log "Compilando Serein ($head, versão ${version:-0.1.0}) com $(pandora_build_jobs) threads"
     # Thin LTO + 16 codegen units: bem mais rápido e leve em RAM que fat LTO (o crate final do
     # Serein passa de 7 GiB com fat LTO + 1 unidade); override por env, sem tocar no Cargo.toml.
     # shellcheck disable=SC2046
     as_user_fast env $(pandora_build_job_env) \
+      ${version:+SEREIN_BUILD_VERSION="$version"} \
+      SEREIN_UPDATE_HINT="sync the fork with upstream, then run: sudo $INSTALL_ROOT/install.sh 56-serein" \
       CARGO_PROFILE_RELEASE_LTO="${SEREIN_LTO:-thin}" \
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 \
       bash -c 'cd "$1" && cargo build --release --locked -p serein --no-default-features \
         && cargo build --release --locked -p net-route --example probe' bash "$SEREIN_SRC" \
       || die "Falha na compilação do Serein"
-    printf '%s\n' "$head" | as_user tee "$SEREIN_SRC/target/.pandora-built-rev" >/dev/null
+    printf '%s\n' "$stamp" | as_user tee "$SEREIN_SRC/target/.pandora-built-rev" >/dev/null
   else
     log "Serein $head já compilado — reutilizando os binários"
   fi
