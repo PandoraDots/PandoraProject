@@ -36,23 +36,4 @@ native_binary_ready /usr/bin/true
 ldd() { echo 'libmissing.so => not found'; }
 if native_binary_ready /usr/bin/true; then exit 1; fi
 unset -f ldd
-# Load only module functions, never its installation entry point.
-source <(sed -n '/^hydra_appimage_ready()/,/^log "Codecs/{ /^log "Codecs/d; p; }' "$ROOT/modules/70-apps.sh")
-sung_ready() { return 0; }
-pac_install() { echo 'unexpected installation' >&2; return 91; }
-install_sung
-# The reusable native build must reach cmake install without a build invocation.
-sung_ready() { [[ -e "$scratch/repaired" ]]; }
-mkdir -p "$BUILD_DIR/Sung/.git" "$BUILD_DIR/Sung/build"
-printf data > "$BUILD_DIR/Sung/build/cmake_install.cmake"
-cp /usr/bin/true "$BUILD_DIR/Sung/build/sung"
-pac_install() { return 0; }
-as_user() {
-  case "$1" in
-    cmake) [[ "$2" == --install ]]; touch "$scratch/repaired" ;;
-    python3|*/runtime/bin/python) return 0 ;;
-    *) echo "unexpected build: $*" >&2; return 92 ;;
-  esac
-}
-install_sung
-printf 'PASS: package health, cache identity/payload, ELF checks, Sung skip and build reuse\n'
+printf 'PASS: package health, cache identity/payload, ELF checks\n'

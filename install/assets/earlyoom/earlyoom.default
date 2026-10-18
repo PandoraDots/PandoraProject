@@ -1,0 +1,10 @@
+# Pandora — earlyoom: mata o processo pesado ANTES do thrashing congelar a sessão.
+#   -m 6,3   : age com <6% RAM disponível (SIGTERM) / <3% (SIGKILL)...
+#   -s 25,10 : ...desde que o swap (zram) esteja com <25% / <10% livre
+#   -r 60    : relatório a cada 60 s
+#   -p       : earlyoom roda com prioridade alta (não congela junto)
+#   --avoid  : nunca escolher sessão gráfica/áudio/rede como vítima
+#   --prefer : vítimas preferidas — builds, wine/proton, docker, node, java
+# Regex sem aspas/escapes (systemd não processa aspas em $EARLYOOM_ARGS) e sem
+# âncora final: earlyoom compara com o comm do kernel, truncado em 15 chars.
+EARLYOOM_ARGS=-m 6,3 -s 25,10 -r 60 -p --avoid ^(umbriel|noctalia|greetd|pipewire|wireplumber|dbus|systemd|Xwayland|NetworkManager|kitty) --prefer ^(cc1plus|cc1|ld|rustc|cargo|ninja|clang|node|java|wine|dockerd|containerd|mongod)

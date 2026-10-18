@@ -90,8 +90,8 @@ Para escolher outro diretório: `sudo env PANDORA_LOG_DIR=/caminho/logs ./instal
 5. Copia o **example empacotado** do Umbriel (não uma config mínima — isso apagaria keybinds)
 6. Garante `autostart = ["noctalia"]` e, se Intel+NVIDIA existirem, `[drm] ignored_pci_addresses` na dGPU
 7. Teclado **br / abnt2** no Umbriel + keybinds Fn de brilho; `video`/`input` no usuário
-8. Visual estilo Caelestia no Umbriel: blur (size/radius 8, passes 2), opacity 0.95, sombra, rounding 15, gaps 5, beziers e timings Hyprland (`speed`×100 ms). Layers off (Noctalia anima sozinho). Sem scheme vermelho / widgets / shaders custom.
-9. Keybinds Pandora: Cursor/Concord/Sung/Firefox (`--new-window`)/ZapZap, terminal com fastfetch, maximize `Mod+Alt+F`, floating `Mod+Alt+R`, scroll→workspace, focus-follows-mouse, overview também em `Mod+MouseBack/Forward`, `Mod+Alt+1..9` move janela. Layout padrão **dwindle**; janela sozinha na workspace abre maximizada (`match.is_alone`). Scratchpads nomeados (= special workspace) abrem maximizados; ZapZap usa `app_id` `com.rtosta.zapzap`. `Print` = captura região (Noctalia), `Mod+Print` = tela cheia, `Mod+V` = clipboard history, `Mod+Period` = emoji.
+8. Visual estilo Caelestia no Umbriel: blur (size/radius 8, passes 2), opacity 0.90, sombra, rounding 15, gaps 5, beziers e timings Hyprland (`speed`×100 ms). Layers off (Noctalia anima sozinho). Sem scheme vermelho / widgets / shaders custom.
+9. Keybinds Pandora: Cursor/Serein (`Mod+D`)/Spotifast (`Mod+G`)/Firefox (`--new-window`)/ZapFast (`Mod+A`), terminal com fastfetch, maximize `Mod+Alt+F`, floating `Mod+Alt+R`, scroll→workspace, focus-follows-mouse, overview também em `Mod+MouseBack/Forward`, `Mod+Alt+1..9` move janela. Layout padrão **dwindle**; janela sozinha na workspace abre maximizada (`match.is_alone`). Scratchpads nomeados (= special workspace) abrem maximizados; ZapZap usa `app_id` `com.rtosta.zapzap`. `Print` = captura região (Noctalia), `Mod+Print` = tela cheia, `Mod+V` = clipboard history, `Mod+Period` = emoji.
 10. Noctalia declarative: `~/.config/noctalia/pandora.toml` (bar layout, control center full sidebar, theme wallpaper/Oxocarbon, widgets) + wallpaper em `~/Pictures/Wallpapers/`; remove das GUI overrides (`settings.toml`) as tabelas cobertas para o config vencer.
 11. Desabilita outros DMs; habilita `greetd` + `accounts-daemon`
 12. Tenta `noctalia-greeter passwordless-sync enable <user>` (greeter ≥ 1.5 + Noctalia ≥ 5.1)
@@ -102,13 +102,15 @@ Para escolher outro diretório: `sudo env PANDORA_LOG_DIR=/caminho/logs ./instal
 | # | Arquivo | O que faz |
 |---|---------|-----------|
 | 00 | `preflight` | sync DB, multilib, **paru**, pacman/makepkg em **todos os cores** (só durante o install), zen headers, base, pipewire, mesa |
-| 10 | `system-tuning` | pacman Color/ILoveCandy, zram, fstrim, paccache, IPv4, fonts, bash history-search, teclado **br-abnt2** |
+| 10 | `system-tuning` | pacman Color/ILoveCandy, zram + sysctl (swappiness 180) + **earlyoom**, fstrim, paccache, IPv4, fonts, bash history-search, teclado **br-abnt2** |
 | 20 | `bootloader` | timeout **0** |
 | 30 | `gpu-hybrid` | open-dkms, EnvyControl **hybrid**, RTD3 (`NVreg_DynamicPowerManagement=0x02` + udev + reload), session iGPU (GL/EGL/Vulkan), `nvidia-persistenced` masked, `nvidia-powerd` on-demand via `prime-run`, GameMode (só pacote), OBS NVIDIA wrapper, `acpi_backlight=native` + blacklist `nvidia_wmi_ec_backlight`, oneshot PM check (self-disable) |
 | 40 | `perfectsense` | clone + makepkg (todos os cores) |
 | 50 | `noctalia-stack` | stack acima |
 | 60 | `dev` | vim, node, .NET 8+10, Rider, C/C++, Rust, Cursor (wrapper iGPU com PCI detectado) |
-| 70 | `apps` | codecs, VLC, Dolphin, Steam, Heroic, Stremio, Concord (cargo jobs), Sung (`SUNG_BUILD_JOBS=nproc`), Hydra, … |
+| 55 | `strata` | **Strata** (fork `yPerfectBR/strata`, cargo 16 threads) como gerenciador de arquivos padrão: pastas, FileManager1 ("mostrar na pasta") e seletor de arquivos do portal; substitui o Dolphin |
+| 56 | `serein` | **Serein** (fork `yPerfectBR/Serein`) compilado com 16 threads e instalado em `/usr/local`, substituindo o pacote; adiciona `SEREIN_PROXY` (SOCKS5/HTTP) ao gateway, voz, REST e CDN, `serein-route`, `serein-wireproxy` (proxy local) e o auxiliar `serein-vpn`: **Configurações → Rede → WireGuard** importa o `.conf` e o botão Reiniciar relança o Serein dentro de um namespace com o túnel (gateway, voz e vídeo pelo mesmo IP; pede a senha de administrador via polkit). CLI: `serein-route vpn import/start/host/status/stop` |
+| 70 | `apps` | codecs, VLC, Steam, Heroic, Stremio, ZapFast, Spotifast, Hydra, … |
 | 80 | `finalize` | PATH local, paru ok, **makepkg -j6 / ParallelDownloads=8** (modo steady), lembretes |
 
 **Fora:** Ananicy-Cpp, config profunda do GameMode, hostname/locale/tz, `fuse2` (AppImage sob demanda).
@@ -117,7 +119,7 @@ Para escolher outro diretório: `sudo env PANDORA_LOG_DIR=/caminho/logs ./instal
 
 - Desktop/WM na **iGPU** (Umbriel ignora PCI NVIDIA quando a Intel está visível)
 - Sessão inteira em Mesa/Intel via `/etc/environment.d/90-pandora-igpu.conf` (GLX/EGL/Vulkan + `NVIDIA_VISIBLE_DEVICES=void`) — Electron/Chromium herdam sem wrapper por app
-- Jogos / OBS / Concord stream: `prime-run` / `obs-nvidia` / `concord-nvidia` (limpa os pins e sobe Dynamic Boost)
+- Jogos / OBS: `prime-run` / `obs-nvidia` (limpa os pins e sobe Dynamic Boost)
 - `nvidia-powerd`: **desligado no boot**; `prime-run` inicia; timer idle para quando a dGPU está `suspended`
 - `nvidia-persistenced`: **masked** (impede RTD3)
 - dGPU ociosa: RTD3 fine-grained (`NVreg_DynamicPowerManagement=0x02`); confira com `cat /sys/bus/pci/devices/0000:01:00.0/power/runtime_status` → `suspended`
@@ -170,10 +172,8 @@ compilados nos caches do pacman, Paru e no `BUILD_DIR`, conferindo identidade e
 leitura do arquivo antes de instalar. Não força recompilação de pacotes saudáveis.
 Essa validação não substitui testar o aplicativo em uma sessão gráfica.
 
-Sung exige binário ELF com bibliotecas resolvidas, recursos, entrada de menu e
-runtime Python com dependências compatíveis. Se a instalação estiver incompleta,
-reutiliza o build CMake válido para reinstalar recursos e reparar o runtime.
-Concord também reaproveita seu binário Cargo quando válido. As árvores de build
+Serein compila via AUR (cargo, pesado): se o `earlyoom` ou a falta de RAM o
+interromper, rode o módulo 70 de novo com memória livre. As árvores de build
 são preservadas; compilação necessária pode aproveitar os resultados incrementais.
 O cache padrão em `/tmp` pode desaparecer ao reiniciar; instalações completas
 continuam sendo reaproveitadas sem ele.

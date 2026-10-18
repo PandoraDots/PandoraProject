@@ -7,11 +7,12 @@ export INSTALL_ROOT
 
 # shellcheck disable=SC2034
 readonly PS_REPO_URL="${PS_REPO_URL:-https://github.com/yPerfectBR/PerfectSense.git}"
-readonly SUNG_REPO_URL="${SUNG_REPO_URL:-https://github.com/yappologistic/Sung.git}"
-# Pandora usa forks yPerfectBR (espelhos do noctalia-dev) para patches e builds.
+# Pandora uses yPerfectBR forks (noctalia-dev mirrors) for patches and builds.
 readonly NOCTALIA_REPO_URL="${NOCTALIA_REPO_URL:-https://github.com/yPerfectBR/noctalia.git}"
 readonly NOCTALIA_GREETER_REPO_URL="${NOCTALIA_GREETER_REPO_URL:-https://github.com/yPerfectBR/noctalia-greeter.git}"
 readonly UMBRIEL_REPO_URL="${UMBRIEL_REPO_URL:-https://github.com/yPerfectBR/umbriel.git}"
+readonly SEREIN_REPO_URL="${SEREIN_REPO_URL:-https://github.com/yPerfectBR/Serein.git}"
+readonly STRATA_REPO_URL="${STRATA_REPO_URL:-https://github.com/yPerfectBR/strata.git}"
 readonly PORTAL_REPO_URL="${PORTAL_REPO_URL:-https://github.com/yPerfectBR/xdg-desktop-portal-umbriel.git}"
 readonly BUILD_DIR="${BUILD_DIR:-/tmp/pandora-noctalia-build}"
 readonly AUR_CACHE="${AUR_CACHE:-$BUILD_DIR/aur}"
@@ -30,7 +31,7 @@ need_root() {
 resolve_user() {
   local u="${SUDO_USER:-${REAL_USER:-}}"
   if [[ -z "$u" || "$u" == root ]]; then
-    # Fallback: primeiro usuário humano com home em /home
+    # Fallback: first human user with a home under /home
     u="$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $6 ~ /^\/home\// {print $1; exit}')"
   fi
   [[ -n "$u" ]] || die "Não foi possível detectar o usuário alvo (SUDO_USER)"
@@ -56,8 +57,8 @@ resolve_stack_paths() {
   as_user mkdir -p "$base" 2>/dev/null || mkdir -p "$base" 2>/dev/null || true
   chown "$REAL_UID:$REAL_GID" "$base" 2>/dev/null || true
 
-  # Se já existirem repositórios soltos na raiz de $REAL_HOME (ex: ambiente prévio),
-  # migra-os de forma transparente para ~/Noctalia se ainda não existirem lá
+  # If loose repos already exist at $REAL_HOME root (e.g. prior environment),
+  # migrate them into ~/Noctalia when they are not already there
   local repo
   for repo in noctalia noctalia-greeter umbriel xdg-desktop-portal-umbriel; do
     if [[ ! -e "$base/$repo" && -d "$REAL_HOME/$repo/.git" ]]; then
@@ -96,7 +97,7 @@ ensure_source_repo() {
       as_user git -C "$target_dir" remote set-url origin "$repo_url" \
         || warn "Falha ao retarget origin em $target_dir"
     fi
-    # Sempre busca o tip do fork; com --refresh-stack força reset hard na branch.
+    # Always fetch the fork tip; --refresh-stack forces a hard reset on the branch.
     if as_user git -C "$target_dir" fetch --prune origin "$branch" 2>/dev/null; then
       if [[ "${PANDORA_REFRESH_STACK:-0}" == "1" ]]; then
         log "Sync hard $target_dir → origin/$branch (refresh-stack)"
@@ -167,7 +168,7 @@ ensure_paru() {
   fi
   # Build as user, install as root
   # shellcheck disable=SC2046
-  (cd "$AUR_CACHE/paru" && as_user env $(pandora_build_job_env) makepkg --noconfirm) || return 1
+  (cd "$AUR_CACHE/paru" && as_user_fast env $(pandora_build_job_env) makepkg --noconfirm) || return 1
   install_built_package paru "$AUR_CACHE/paru" || return 1
   configure_paru
 }
@@ -194,7 +195,9 @@ configure_paru() {
 }
 
 # Steady day-to-day makepkg parallelism after the install finishes.
-PANDORA_MAKEPKG_STEADY_JOBS=6
+# 16 build threads (i7-14700HX: 8P+12E) by default, steady state included.
+PANDORA_BUILD_CORES=16
+PANDORA_MAKEPKG_STEADY_JOBS=$PANDORA_BUILD_CORES
 PANDORA_PACMAN_STEADY_DOWNLOADS=8
 
 # Color + ILoveCandy in pacman.conf (idempotent).
@@ -256,7 +259,7 @@ set_makepkg_jobs() {
 # Full machine for the install run: all CPU threads + aggressive downloads.
 configure_build_parallelism_install() {
   local jobs downloads
-  jobs="$(nproc 2>/dev/null || echo 6)"
+  jobs="$(pandora_build_jobs)"
   downloads="$jobs"
   ((downloads < 8)) && downloads=8
   configure_pacman_ui
@@ -271,9 +274,37 @@ configure_build_parallelism_steady() {
   set_makepkg_jobs "$PANDORA_MAKEPKG_STEADY_JOBS"
 }
 
-# CPU jobs for cloned-source builds (Sung/Concord/PerfectSense, etc.).
+# CPU jobs for cloned-source builds: 16 threads by default (override with PANDORA_BUILD_JOBS),
+# never more than the machine has. High priority (see as_user_fast) keeps the desktop
+# usable; OOMScoreAdjust below keeps earlyoom from killing the compiler mid-build.
 pandora_build_jobs() {
-  nproc 2>/dev/null || echo "${PANDORA_MAKEPKG_STEADY_JOBS:-6}"
+  local cpus
+  cpus="$(nproc 2>/dev/null || echo "$PANDORA_BUILD_CORES")"
+  local want="${PANDORA_BUILD_JOBS:-$PANDORA_BUILD_CORES}"
+  ((want > cpus)) && want=$cpus
+  echo "$want"
+}
+
+# Like as_user, but with build priority: nice -10 + best-effort I/O class 0 and, when systemd is
+# available, a transient scope with the top CPU/IO weight; choom lowers the OOM score.
+as_user_fast() {
+  resolve_user
+  if [[ ${EUID:-0} -ne 0 ]]; then
+    env HOME="$REAL_HOME" USER="$REAL_USER" LOGNAME="$REAL_USER" "$@"
+    return
+  fi
+  local wrap=(nice -n "${PANDORA_BUILD_NICE:--10}")
+  command -v ionice >/dev/null && wrap+=(ionice -c 2 -n 0)
+  # earlyoom/kernel OOM: keep the compiler alive (scopes cannot carry OOMScoreAdjust)
+  command -v choom >/dev/null && wrap+=(choom -n "${PANDORA_BUILD_OOM_ADJ:--500}" --)
+  if command -v systemd-run >/dev/null && [[ -d /run/systemd/system ]]; then
+    systemd-run --scope --quiet --collect \
+      -p CPUWeight=10000 -p IOWeight=1000 \
+      "${wrap[@]}" \
+      runuser -u "$REAL_USER" -- env HOME="$REAL_HOME" USER="$REAL_USER" LOGNAME="$REAL_USER" "$@"
+  else
+    "${wrap[@]}" runuser -u "$REAL_USER" -- env HOME="$REAL_HOME" USER="$REAL_USER" LOGNAME="$REAL_USER" "$@"
+  fi
 }
 
 # Env vars common build tools honor (makepkg already uses MAKEFLAGS from /etc).
@@ -379,7 +410,7 @@ aur_install() {
     log "paru -S: ${missing[*]}"
     # paru as user; it will sudo for install
     # shellcheck disable=SC2046
-    as_user env $(pandora_build_job_env) paru -S --noconfirm --skipreview "${missing[@]}"
+    as_user_fast env $(pandora_build_job_env) paru -S --noconfirm --skipreview "${missing[@]}"
   fi
 }
 
@@ -428,29 +459,6 @@ native_binary_ready() {
   [[ "$dependencies" != *"not found"* ]]
 }
 
-sung_ready() {
-  local prefix="$REAL_HOME/.local" file
-  native_binary_ready "$prefix/bin/sung" || return 1
-  for file in lib/sung/catalog.py lib/sung/online_artwork.py lib/sung/requirements.txt \
-    share/applications/sung.desktop share/icons/hicolor/512x512/apps/sung.png; do
-    [[ -s "$prefix/$file" ]] || return 1
-  done
-  as_user "$prefix/lib/sung/runtime/bin/python" -m pip check >/dev/null 2>&1 || return 1
-  as_user "$prefix/lib/sung/runtime/bin/python" -c 'import ytmusicapi, yt_dlp' >/dev/null 2>&1 || return 1
-  as_user "$prefix/lib/sung/runtime/bin/python" - "$prefix/lib/sung/requirements.txt" <<'PYREQ'
-import sys
-from importlib.metadata import version
-from pip._vendor.packaging.requirements import Requirement
-for line in open(sys.argv[1]):
-    if not line.strip() or line.lstrip().startswith("#"):
-        continue
-    req = Requirement(line.strip())
-    if req.marker is None or req.marker.evaluate():
-        if version(req.name) not in req.specifier:
-            sys.exit(1)
-PYREQ
-}
-
 # Select the real package, never its debug archive or detached signature.
 install_built_package() {
   local name="$1" directory="$2" archive metadata
@@ -473,7 +481,7 @@ enable_multilib() {
     return 0
   fi
   log "Habilitando [multilib]"
-  # Descomenta bloco [multilib] padrão do Arch
+  # Uncomment the stock Arch [multilib] block
   if grep -qE '^#\[multilib\]' "$conf"; then
     sed -i '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/{s/^#//}' "$conf"
   else
@@ -696,7 +704,7 @@ ensure_wheel_sudo() {
     log "Adicionando $REAL_USER ao grupo wheel"
     usermod -aG wheel "$REAL_USER"
   fi
-  # Garante sudo para wheel (sem mexer em hostname/locale)
+  # Ensure sudo for wheel (without touching hostname/locale)
   if [[ -f /etc/sudoers ]] && ! grep -qE '^%wheel ALL=\(ALL:ALL\) ALL' /etc/sudoers \
     && ! grep -qE '^%wheel ALL=\(ALL\) ALL' /etc/sudoers; then
     if [[ -d /etc/sudoers.d ]]; then
@@ -710,7 +718,7 @@ ensure_wheel_sudo() {
 }
 
 mkdir -p "$BUILD_DIR" "$AUR_CACHE"
-# Builds AUR/PerfectSense/Sung rodam como usuário — precisa ser gravável
+# AUR/PerfectSense builds run as the user — tree must be writable
 if [[ ${EUID:-0} -eq 0 ]]; then
   resolve_user 2>/dev/null || true
   if [[ -n "${REAL_USER:-}" ]]; then

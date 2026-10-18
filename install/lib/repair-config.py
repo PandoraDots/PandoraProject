@@ -133,7 +133,7 @@ CAELESTIA_VISUAL = (
 )
 
 CAELESTIA_WINDOW_RULE = {
-    "opacity": 0.95,
+    "opacity": 0.90,
     "blur": True,
     "blur_popups": True,
     "blur_optimized": False,
@@ -152,19 +152,20 @@ def pandora_scratchpad_scale(gap=PANDORA_LAYOUT_GAP):
 
 # Named scratchpads replace the implicit "default"; general keeps Mod+Space.
 # Firefox is a plain spawn (--new-window), not a scratchpad.
-PANDORA_SCRATCHPADS = ("general", "concord", "sung", "whatsapp")
+PANDORA_SCRATCHPADS = ("general", "discord", "spotify", "whatsapp")
 
-# (app_id regex, scratchpad name) — open maximized like Concord's full float.
+# (app_id regex, scratchpad name) — open maximized in a full float.
 PANDORA_SCRATCH_RULES = (
-    ("^concord$", "concord"),
-    ("^sung$", "sung"),
-    # ZapZap's Wayland app_id is reverse-DNS; use [.] (TOML-safe) not \.
-    ("^com[.]rtosta[.]zapzap$", "whatsapp"),
+    # Serein's Wayland app_id is reverse-DNS; use [.] (TOML-safe) not \.
+    ("^cz[.]viceverse[.]serein$", "discord"),
+    ("^spotifast$", "spotify"),
+    ("^zapfast$", "whatsapp"),
 )
 
 # Drop leftover browser/firefox scratchpad wiring from earlier installs.
-PANDORA_REMOVE_SCRATCHPADS = ("browser",)
-PANDORA_REMOVE_SCRATCH_PADS_FROM_RULES = ("browser",)
+# concord/sung were replaced by Serein/Spotifast; ZapZap's rule reuses "whatsapp".
+PANDORA_REMOVE_SCRATCHPADS = ("browser", "concord", "sung")
+PANDORA_REMOVE_SCRATCH_PADS_FROM_RULES = ("browser", "concord", "sung", "whatsapp")
 
 
 def _helper_bin(name):
@@ -196,23 +197,27 @@ def _abs_cmd(name):
 def pandora_keybinds():
     scratch = _helper_bin("pandora-scratch-toggle")
     kitty_shell = _helper_bin("pandora-kitty-shell")
-    sung = _abs_cmd("sung")
-    zapzap = _abs_cmd("zapzap")
-    concord = _abs_cmd("concord")
+    spotifast = _abs_cmd("spotifast")
+    zapfast = _abs_cmd("zapfast")
+    serein = _abs_cmd("serein")
     kitty = _abs_cmd("kitty")
     firefox = _abs_cmd("firefox")
     cursor = _abs_cmd("cursor")
     # Spawn Kitty itself; fastfetch via -o shell= (not kitty -e bash).
     # confirm_os_window_close=0: allow rapid Mod+T open/close without the Yes/No dialog.
     terminal = f"{kitty} -o shell={kitty_shell} -o confirm_os_window_close=0"
+    explorer = _abs_cmd("strata")
+    spotify_player = f"{kitty} --class=spotify-player -e /home/perfect/.cargo/bin/spotify_player"
     binds = {
         "Mod+C": f'"spawn:{cursor}"',
-        "Mod+D": f'"spawn:{scratch} concord concord -- {kitty} --app-id=concord -e {concord}"',
-        "Mod+G": f'"spawn:{scratch} sung sung -- {sung}"',
+        "Mod+D": f'"spawn:{scratch} discord cz.viceverse.serein -- {serein}"',
+        "Mod+G": f'"spawn:{scratch} spotify spotifast -- {spotifast}"',
         "Mod+W": f'"spawn:{firefox} --new-window"',
-        "Mod+A": f'"spawn:{scratch} whatsapp com.rtosta.zapzap -- {zapzap}"',
+        "Mod+A": f'"spawn:{scratch} whatsapp zapfast -- {zapfast}"',
         "Mod+T": f'"spawn:{terminal}"',
         "Mod+Return": f'"spawn:{terminal}"',
+        "Mod+E": f'"spawn:{explorer}"',
+        "Mod+Alt+G": f'"spawn:{spotify_player}"',
         "Mod+Alt+R": '"window-toggle-floating"',
         "Mod+Alt+F": '"window-toggle-maximize-to-edges"',
         "Mod+F": '"window-toggle-fullscreen"',
@@ -231,9 +236,9 @@ def pandora_keybinds():
         "Mod+V": '"spawn:noctalia msg panel-toggle clipboard"',
         "Mod+Period": '"spawn:noctalia msg panel-toggle launcher /emo"',
         # Displaced example binds → free chords
-        "Mod+Alt+H": '"window-cycle-height"',
-        "Mod+Alt+Shift+H": '"window-cycle-height-back"',
-        "Mod+Alt+C": '"column-center"',
+        "Mod+Alt+H": '"window-cycle-secondary-extent"',
+        "Mod+Alt+Shift+H": '"window-cycle-secondary-extent-back"',
+        "Mod+Alt+C": f'"spawn:{kitty} --class=neovim -e /usr/local/bin/nvim"',
         "Mod+Alt+Period": '"window-consume-right"',
         # Replaced by Mod+Alt+F / Mod+Alt+R / Wheel workspace binds.
         "Mod+M": None,

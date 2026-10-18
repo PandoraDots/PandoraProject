@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Valida sintaxe + resolução de pacotes (não instala nada destrutivo por padrão)
+# Validate syntax + package resolution (does not install anything destructive by default)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,7 +28,9 @@ OFFICIAL=(
   nodejs npm rustup clang cmake meson ninja
   wlroots0.20 sdbus-cpp tomlplusplus libdisplay-info libepoxy
   dotnet-sdk-8.0 dotnet-sdk-10.0
-  vlc dolphin ffmpeg pipewire wireplumber
+  vlc ffmpeg pipewire wireplumber
+  bubblewrap gtksourceview5 gvfs poppler-glib
+  wireproxy wireguard-tools polkit polkit-gnome webkitgtk-6.0 libsoup3
   xwayland-satellite power-profiles-daemon
   accountsservice ffmpegthumbnailer jemalloc kitty
 )
@@ -36,8 +38,8 @@ OFFICIAL=(
 AUR=(
   envycontrol
   cursor-bin rider blockbench-bin heroic-games-launcher-bin
-  stremio zapzap proton-vpn-gtk-app labymodlauncher-bin
-  hydra-launcher-bin concord-bin concord ttf-ms-fonts
+  stremio zapfast-bin spotifast-bin proton-vpn-gtk-app labymodlauncher-bin
+  hydra-launcher-bin ttf-ms-fonts
 )
 
 missing_off=()
@@ -140,14 +142,13 @@ else
   ok "nvidia-persistenced não enabled"
 fi
 
-# Remotes essenciais da stack Pandora
+# Essential remotes for the Pandora stack
 for url in \
   "$UMBRIEL_REPO_URL" \
   "$PORTAL_REPO_URL" \
   "$NOCTALIA_REPO_URL" \
   "$NOCTALIA_GREETER_REPO_URL" \
-  https://github.com/yPerfectBR/PerfectSense.git \
-  https://github.com/yappologistic/Sung.git
+  https://github.com/yPerfectBR/PerfectSense.git
 do
   if git ls-remote "$url" HEAD &>/dev/null; then
     ok "git reachable: $url"

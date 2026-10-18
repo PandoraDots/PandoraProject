@@ -161,7 +161,7 @@ default_floating = true
         self.assertEqual(anim['beziers']['standard'], [0.2, 0.0, 0.0, 1.0])
         self.assertEqual(data['colors']['accent_primary'], '#FF0000FF')
         catch_all, settings = data['window_rule']
-        self.assertEqual(catch_all['opacity'], 0.95)
+        self.assertEqual(catch_all['opacity'], 0.90)
         self.assertTrue(catch_all['blur'])
         self.assertTrue(catch_all['blur_popups'])
         self.assertFalse(catch_all['blur_optimized'])
@@ -179,7 +179,7 @@ opacity = 1.0
         result = repair.repair(original, 'visual', '')
         rules = tomllib.loads(result)['window_rule']
         self.assertNotIn('match', rules[0])
-        self.assertEqual(rules[0]['opacity'], 0.95)
+        self.assertEqual(rules[0]['opacity'], 0.90)
         self.assertEqual(rules[1]['match']['app_id'], '^kitty$')
         self.assertEqual(rules[1]['opacity'], 1.0)
 
@@ -209,17 +209,19 @@ follows_mouse = false
         )
         self.assertTrue(alone['default_maximize'])
         pads = {p['name'] for p in data['scratchpad']}
-        self.assertEqual(pads, {'general', 'concord', 'sung', 'whatsapp'})
+        self.assertEqual(pads, {'general', 'discord', 'spotify', 'whatsapp'})
         kb = data['keybinds']
         self.assertIn('spawn:', kb['Mod+C'])
         self.assertIn('cursor', kb['Mod+C'])
         self.assertIn('pandora-scratch-toggle', kb['Mod+D'])
-        self.assertIn('concord concord --', kb['Mod+D'])
+        self.assertIn('discord cz.viceverse.serein --', kb['Mod+D'])
         self.assertIn('pandora-scratch-toggle', kb['Mod+G'])
-        self.assertIn('sung sung --', kb['Mod+G'])
+        self.assertIn('spotify spotifast --', kb['Mod+G'])
+        self.assertIn('strata', kb['Mod+E'])
+        self.assertNotIn('fyzenor', kb['Mod+E'])
         self.assertIn('firefox --new-window', kb['Mod+W'])
         self.assertNotIn('browser', kb['Mod+W'])
-        self.assertIn('whatsapp com.rtosta.zapzap --', kb['Mod+A'])
+        self.assertIn('whatsapp zapfast --', kb['Mod+A'])
         self.assertIn('pandora-kitty-shell', kb['Mod+T'])
         self.assertIn('kitty', kb['Mod+T'])
         self.assertIn('confirm_os_window_close=0', kb['Mod+T'])
@@ -227,8 +229,9 @@ follows_mouse = false
         self.assertEqual(kb['Mod+Alt+R'], 'window-toggle-floating')
         self.assertEqual(kb['Mod+Alt+F'], 'window-toggle-maximize-to-edges')
         self.assertEqual(kb['Mod+F'], 'window-toggle-fullscreen')
-        self.assertEqual(kb['Mod+Alt+H'], 'window-cycle-height')
-        self.assertEqual(kb['Mod+Alt+C'], 'column-center')
+        self.assertEqual(kb['Mod+Alt+H'], 'window-cycle-secondary-extent')
+        self.assertIn('neovim', kb['Mod+Alt+C'])
+        self.assertIn('spotify_player', kb.get('Mod+Alt+G', ''))
         self.assertEqual(kb['Mod+Space'], 'scratchpad-toggle:general')
         self.assertEqual(kb['Mod+Alt+3'], 'window-move-to-workspace:3')
         self.assertEqual(kb['Mod+WheelUp']['action'], 'workspace-previous')
@@ -241,9 +244,9 @@ follows_mouse = false
         self.assertNotIn('Mod+M', kb)
         self.assertNotIn('Mod+Ctrl+F', kb)
         scratch_rules = [r for r in data['window_rule'] if r.get('default_scratchpad')]
-        self.assertEqual({r['default_scratchpad'] for r in scratch_rules}, {'concord', 'sung', 'whatsapp'})
+        self.assertEqual({r['default_scratchpad'] for r in scratch_rules}, {'discord', 'spotify', 'whatsapp'})
         whatsapp_rule = next(r for r in scratch_rules if r['default_scratchpad'] == 'whatsapp')
-        self.assertEqual(whatsapp_rule['match']['app_id'], '^com[.]rtosta[.]zapzap$')
+        self.assertEqual(whatsapp_rule['match']['app_id'], '^zapfast$')
         self.assertFalse(data['animation']['scratchpad']['maximize'])
         self.assertAlmostEqual(
             data['animation']['scratchpad']['scale'],

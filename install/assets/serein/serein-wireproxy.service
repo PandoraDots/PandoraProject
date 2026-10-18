@@ -1,0 +1,17 @@
+[Unit]
+Description=WireGuard tunnel for Serein only (wireproxy exposes a local SOCKS5 proxy)
+Documentation=file:///usr/local/share/doc/serein/network-route.md
+ConditionPathExists=%h/.config/serein/wireproxy.conf
+
+[Service]
+ExecStart=/usr/bin/wireproxy -c %h/.config/serein/wireproxy.conf
+Restart=on-failure
+RestartSec=3
+# Everything here is local: no new privileges, private tmp, no access to other homes.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=default.target

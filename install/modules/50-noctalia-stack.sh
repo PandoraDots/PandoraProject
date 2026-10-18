@@ -76,11 +76,28 @@ ensure_umbriel_autostart() {
   ok "Umbriel autostart → noctalia"
 }
 
+# Agente de autenticação do polkit: sem ele o pkexec não mostra janela de senha (o Serein pede
+# administrador ao entrar no túnel WireGuard) e termina com "permission was not granted".
+ensure_polkit_agent_autostart() {
+  local conf="$1" agent=/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+  [[ -x "$agent" ]] || { warn "polkit-gnome ausente — pkexec não terá janela de senha"; return 0; }
+  if grep -qF "$agent" "$conf"; then
+    already_ok
+    return 0
+  fi
+  if grep -qE '^[[:space:]]*autostart[[:space:]]*=[[:space:]]*\[\s*\]' "$conf"; then
+    sed -i -E "s#^([[:space:]]*autostart[[:space:]]*=[[:space:]]*)\[\s*\]#\1[\"$agent\"]#" "$conf"
+  else
+    sed -i -E "s#^([[:space:]]*autostart[[:space:]]*=[[:space:]]*\[)#\1\"$agent\", #" "$conf"
+  fi
+  ok "Umbriel autostart → agente polkit"
+}
+
 ensure_umbriel_hybrid_drm() {
-  # Em laptops híbridos (como Helios Neo 16), o HDMI/DP externo é fisicamente
-  # conectado à dGPU NVIDIA, enquanto a tela interna é ligada à iGPU Intel.
-  # Não podemos ignorar a NVIDIA no [drm] do Umbriel, senão monitores externos
-  # ficam sem sinal. O compositor usa multi-GPU (WLR_DRM_DEVICES) com primária na Intel.
+  # On hybrid laptops (e.g. Helios Neo 16), external HDMI/DP is physically
+  # wired to the NVIDIA dGPU, while the internal panel is on the Intel iGPU.
+  # Do not ignore NVIDIA in Umbriel [drm], or external monitors
+  # get no signal. The compositor uses multi-GPU (WLR_DRM_DEVICES) with Intel primary.
   local conf="$1"
   if grep -qE '^[[:space:]]*ignored_pci_addresses' "$conf" 2>/dev/null; then
     sed -i -E 's/^[[:space:]]*(ignored_pci_addresses[[:space:]]*=)/# \1/' "$conf"
@@ -111,11 +128,11 @@ ensure_umbriel_brightness_binds() {
 }
 
 ensure_umbriel_caelestia_visual() {
-  # Chrome do Caelestia (blur/opacity/sombra/rounding/gaps/anim) — sem scheme vermelho.
+  # Caelestia chrome (blur/opacity/shadow/rounding/gaps/anim) — no red scheme.
   local conf="$1"
   python3 "$INSTALL_ROOT/lib/repair-config.py" visual "$conf" \
     || die "Falha ao aplicar visual Caelestia no Umbriel"
-  ok "Umbriel visual → Caelestia (blur 8×2, opacity 0.95, anim speed×100 ms)"
+  ok "Umbriel visual → Caelestia (blur 8×2, opacity 0.90, anim speed×100 ms)"
 }
 
 ensure_umbriel_pandora_keybinds() {
@@ -191,8 +208,8 @@ install_umbriel_user_config() {
   as_user mkdir -p "$REAL_HOME/.config/umbriel"
 
   if [[ ! -f "$conf" ]]; then
-    # CRÍTICO: o example empacotado traz keybinds/window_rules/layer_rules do Noctalia.
-    # Uma config mínima SUBSTITUI o conjunto built-in de keybinds (docs Umbriel).
+    # CRITICAL: the packaged example ships Noctalia keybinds/window_rules/layer_rules.
+    # A minimal config REPLACES the built-in keybind set (Umbriel docs).
     local src=""
     for cand in /usr/share/umbriel/config.toml /usr/local/share/umbriel/config.toml; do
       if [[ -f "$cand" ]]; then
@@ -215,6 +232,7 @@ install_umbriel_user_config() {
   fi
 
   ensure_umbriel_autostart "$conf"
+  ensure_polkit_agent_autostart "$conf"
   ensure_umbriel_hybrid_drm "$conf"
   ensure_umbriel_keyboard_abnt2 "$conf"
   ensure_umbriel_brightness_binds "$conf"
@@ -232,7 +250,12 @@ install_umbriel_user_config() {
 
   chown "$REAL_UID:$REAL_GID" "$conf"
   if command -v umbriel >/dev/null; then
-    as_user umbriel validate -c "$conf" \
+    # Umbriel >= 0.1 (Sep 2026): `umbriel config validate`; border scratchpad_* colors
+    # were dropped in favour of window rules — scrub them from the generated palette.
+    sed -i '/^scratchpad_\(un\)\?focused[[:space:]]*=/d' "$(dirname "$conf")/noctalia.toml" 2>/dev/null || true
+    local validate_cmd=(umbriel config validate -c "$conf")
+    umbriel config schema >/dev/null 2>&1 || validate_cmd=(umbriel validate -c "$conf")
+    as_user "${validate_cmd[@]}" \
       && ok "umbriel validate OK" \
       || die "umbriel validate reportou problemas — revise $conf"
   fi
@@ -242,7 +265,7 @@ write_greetd_config() {
   local greeter_bin="$1"
   mkdir -p /etc/greetd
   # Docs: greetd must launch noctalia-greeter-session (full path), user=greeter.
-  # Defaults de sessão/usuário ficam em greeter.toml (evita quebrar Name= com espaços).
+  # Session/user defaults live in greeter.toml (avoids breaking Name= with spaces).
   install_if_changed 644 /dev/stdin /etc/greetd/config.toml <<EOF
 # Pandora Noctalia — https://docs.noctalia.dev/greeter/installation/
 [terminal]
@@ -339,7 +362,7 @@ build_and_install_umbriel() {
       -Dtests=disabled --reconfigure || die "Falha ao reconfigurar Umbriel"
   fi
   # shellcheck disable=SC2046
-  as_user env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Umbriel"
+  as_user_fast env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Umbriel"
   log "Instalando Umbriel em /usr"
   meson install -C "$bdir" --no-rebuild || die "Falha na instalação do Umbriel"
   ok "Umbriel compilado e instalado"
@@ -380,7 +403,7 @@ build_and_install_portal() {
       }
   fi
   # shellcheck disable=SC2046
-  as_user env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || {
+  as_user_fast env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || {
     warn "Compilação do portal falhou — tentando AUR como fallback"
     install_prefer xdg-desktop-portal-umbriel-git || true
     return 0
@@ -416,7 +439,7 @@ build_and_install_noctalia() {
       -Dtests=disabled --reconfigure || die "Falha ao reconfigurar Noctalia"
   fi
   # shellcheck disable=SC2046
-  as_user env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Noctalia"
+  as_user_fast env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Noctalia"
   log "Instalando Noctalia em /usr"
   meson install -C "$bdir" --no-rebuild || die "Falha na instalação do Noctalia"
   ok "Noctalia compilado e instalado"
@@ -442,7 +465,7 @@ build_and_install_noctalia_greeter() {
       -Db_ndebug=true --reconfigure || die "Falha ao reconfigurar Noctalia-Greeter"
   fi
   # shellcheck disable=SC2046
-  as_user env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Noctalia-Greeter"
+  as_user_fast env $(pandora_build_job_env) meson compile -C "$bdir" -j "$(pandora_build_jobs)" || die "Falha na compilação do Noctalia-Greeter"
   log "Instalando Noctalia-Greeter em /usr"
   meson install -C "$bdir" --no-rebuild || die "Falha na instalação do Noctalia-Greeter"
   ok "Noctalia-Greeter compilado e instalado"
@@ -459,7 +482,7 @@ log "Stack Noctalia + Umbriel + Greeter (Build de repositórios locais)"
 log "Caminhos fonte: Noctalia=$NOCTALIA_SRC | Greeter=$NOCTALIA_GREETER_SRC | Umbriel=$UMBRIEL_SRC"
 log "Cores de build: $(pandora_build_jobs) threads ativas"
 
-# 1. Dependências de compilação e execução oficiais (Arch repos)
+# 1. Official build and runtime dependencies (Arch repos)
 log "Instalando dependências oficiais de build e runtime"
 pac_install \
   greetd dbus polkit accountsservice \
@@ -476,17 +499,17 @@ pac_install \
   brightnessctl playerctl grim slurp wl-clipboard \
   ffmpeg ffmpegthumbnailer
 
-# Terminal usado pelos keybinds padrão do example Umbriel (Mod+Return → kitty)
+# Terminal used by default Umbriel example keybinds (Mod+Return → kitty)
 pac_install kitty foot || pac_install foot || true
 pac_install fastfetch || warn "fastfetch falhou (terminal ainda abre sem banner)"
 
-# 2. Build e instalação a partir dos repositórios locais (ou clonados)
+# 2. Build and install from local (or freshly cloned) repositories
 build_and_install_umbriel
 build_and_install_portal
 build_and_install_noctalia
 build_and_install_noctalia_greeter
 
-# 3. Validar e reportar versões instaladas
+# 3. Validate and report installed versions
 report_noctalia_stack_versions
 assert_noctalia_stack_compat
 
@@ -526,7 +549,7 @@ chown -R greeter:greeter /var/lib/noctalia-greeter 2>/dev/null || true
 
 greeter_bin="$(command -v noctalia-greeter-session || true)"
 [[ -n "$greeter_bin" ]] || die "noctalia-greeter-session não encontrado (pacote noctalia-greeter)"
-# Preferir caminho canônico /usr/bin quando existir
+# Prefer the canonical /usr/bin path when it exists
 [[ -x /usr/bin/noctalia-greeter-session ]] && greeter_bin=/usr/bin/noctalia-greeter-session
 
 session_name="$(resolve_umbriel_session_name)"
@@ -558,7 +581,7 @@ ok "Grupos video+input → $REAL_USER"
 # Console / X11 / greeter XKB defaults
 ensure_br_abnt2_keymap
 
-# Habilita para o próximo boot; abrir o login é o último passo do install.sh.
+# Enable for the next boot; opening the login screen is install.sh's last step.
 if systemctl is-enabled --quiet greetd.service; then
   already_ok
 else

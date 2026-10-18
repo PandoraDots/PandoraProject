@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# serein-route — choose the network route of the Serein Discord client (fork with SEREIN_PROXY).
+#   serein-route status              show the active route and whether wireproxy is running
+#   serein-route set <url>           socks5://host:port or http://host:port (credentials allowed)
+#   serein-route off                 back to a direct connection
+#   serein-route test                open the Discord gateway through the route (no account, no login)
+#   serein-route wireproxy <wg.conf> use a WireGuard config (e.g. from Proton) as a local SOCKS5
+#                                    proxy via wireproxy; only Serein goes through the tunnel
+#   serein-route vpn import <wg.conf>  keep a WireGuard config for whole-process tunnelling
+#   serein-route vpn start             start Serein inside the tunnel (voice/video included); asks
+#                                      for sudo (SEREIN_VPN_PRIV="pkexec" to use polkit instead)
+#   serein-route vpn host              start Serein outside the tunnel again
+#   serein-route vpn status | stop | check <wg.conf>
+#                                      tunnel state / remove the namespace / validate a file
+# Takes effect the next time Serein starts. Using a proxy/VPN to get around a restriction may
+# violate Discord's Terms of Service and can trigger account verification.
+set -euo pipefail
+cfg_dir="${XDG_CONFIG_HOME:-$HOME/.config}/serein"
+route="$cfg_dir/proxy"
+wp_conf="$cfg_dir/wireproxy.conf"
+port="${SEREIN_WIREPROXY_PORT:-1080}"
+vpn_conf="$cfg_dir/wireguard.conf"
+helper="${SEREIN_VPN_HELPER:-/usr/local/libexec/serein-vpn}"
+priv="${SEREIN_VPN_PRIV:-sudo}"
+
+die() { echo "serein-route: $*" >&2; exit 1; }
+
+current() {
+  if [[ -n "${SEREIN_PROXY:-}" ]]; then echo "environment (SEREIN_PROXY)"; return; fi
+  [[ -f "$route" ]] && echo "file $route" || echo "none (direct)"
+}
+
+case "${1:-status}" in
+  status)
+    echo "source : $(current)"
+    if command -v serein-probe >/dev/null; then serein-probe --route-only 2>/dev/null || true; fi
+    if [[ -f "$route" ]]; then
+      # never print credentials
+      sed -E 's#(://)[^/@]*@#\1***@#' "$route" | grep -vE '^\s*(#|$)' | head -1 | sed 's/^/route  : /'
+    else echo "route  : direct"; fi
+    systemctl --user is-active --quiet serein-wireproxy.service 2>/dev/null \
+      && echo "wireproxy: running" || echo "wireproxy: stopped"
+    if [[ -f "$vpn_conf" ]]; then echo "vpn    : configured ($vpn_conf)"; else echo "vpn    : not configured"; fi
+    [[ "${SEREIN_VPN_ACTIVE:-}" == 1 ]] && echo "vpn    : this shell is inside the tunnel"
+    ;;
+  set)
+    [[ $# -ge 2 ]] || die "usage: serein-route set <socks5://host:port | http://host:port>"
+    mkdir -p "$cfg_dir"; chmod 700 "$cfg_dir"
+    umask 077
+    printf '%s\n' "$2" > "$route"
+    chmod 600 "$route"
+    echo "route set. Restart Serein to apply. Check it with: serein-route test"
+    ;;
+  off)
+    rm -f "$route"
+    systemctl --user disable --now serein-wireproxy.service 2>/dev/null || true
+    echo "route removed (direct). Restart Serein to apply."
+    ;;
+  test)
+    command -v serein-probe >/dev/null || die "serein-probe is not installed (run the Pandora serein module)"
+    serein-probe "${2:-wss://gateway.discord.gg/?v=10&encoding=json}"
+    ;;
+  wireproxy)
+    [[ $# -ge 2 && -r "$2" ]] || die "usage: serein-route wireproxy <wireguard.conf>"
+    command -v wireproxy >/dev/null || die "wireproxy is not installed (sudo pacman -S wireproxy)"
+    mkdir -p "$cfg_dir"; chmod 700 "$cfg_dir"
+    umask 077
+    cp -- "$2" "$wp_conf"
+    if ! grep -qiE '^\[Socks5\]' "$wp_conf"; then
+      printf '\n[Socks5]\nBindAddress = 127.0.0.1:%s\n' "$port" >> "$wp_conf"
+    fi
+    chmod 600 "$wp_conf"
+    bind="$(awk 'tolower($0) ~ /^\[socks5\]/ {s=1; next} s && tolower($1) ~ /^bindaddress/ {print $3; exit}' "$wp_conf")"
+    printf 'socks5://%s\n' "${bind:-127.0.0.1:$port}" > "$route"; chmod 600 "$route"
+    systemctl --user daemon-reload
+    systemctl --user enable --now serein-wireproxy.service
+    sleep 2
+    systemctl --user is-active --quiet serein-wireproxy.service \
+      && echo "wireproxy running; Serein will use socks5://${bind:-127.0.0.1:$port}. Restart Serein." \
+      || die "wireproxy failed to start: journalctl --user -u serein-wireproxy"
+    ;;
+  vpn)
+    sub="${2:-status}"
+    [[ -x "$helper" ]] || die "serein-vpn helper missing at $helper (run the Pandora serein module)"
+    # Environment the new Serein needs; allow-listed because it is passed on a command line.
+    env_args=()
+    while IFS='=' read -r name value; do
+      case "$name" in
+        XDG_*|WAYLAND_*|DBUS_*|LC_*|GDK_*|GTK_*|QT_*|WGPU_*|VK_*|MESA_*|DISPLAY|LANG|LANGUAGE|TERM)
+          [[ "$value" != *$'\n'* ]] && env_args+=(--env "$name=$value");;
+      esac
+    done < <(env)
+    case "$sub" in
+      import)
+        [[ $# -ge 3 && -r "$3" ]] || die "usage: serein-route vpn import <wireguard.conf>"
+        "$helper" check "$3" || die "that file cannot be used"
+        mkdir -p "$cfg_dir"; chmod 700 "$cfg_dir"
+        umask 077
+        cp -- "$3" "$vpn_conf"; chmod 600 "$vpn_conf"
+        # The whole process goes through the tunnel; a proxy route would be redundant.
+        rm -f "$route"
+        systemctl --user disable --now serein-wireproxy.service 2>/dev/null || true
+        echo "imported. Start with: serein-route vpn start"
+        ;;
+      start)
+        [[ -f "$vpn_conf" ]] || die "no configuration: serein-route vpn import <wireguard.conf>"
+        exec $priv "$helper" run "$vpn_conf" "${env_args[@]}" -- "${SEREIN_BIN:-/usr/local/bin/serein}"
+        ;;
+      host) exec $priv "$helper" host "${env_args[@]}" -- "${SEREIN_BIN:-/usr/local/bin/serein}";;
+      status)
+        [[ -f "$vpn_conf" ]] && echo "config : $vpn_conf" || echo "config : none"
+        $priv "$helper" status || true
+        ;;
+      stop) exec $priv "$helper" down;;
+      check) [[ $# -ge 3 ]] || die "usage: serein-route vpn check <wireguard.conf>"; exec "$helper" check "$3";;
+      *) die "unknown vpn command '$sub' (import|start|host|status|stop|check)";;
+    esac
+    ;;
+  *) die "unknown command '$1' (status|set|off|test|wireproxy|vpn)";;
+esac

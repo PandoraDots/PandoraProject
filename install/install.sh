@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Pandora Noctalia — post-install (Arch puro + linux-zen + nvidia-open-dkms)
+# Pandora Noctalia — post-install (vanilla Arch + linux-zen + nvidia-open-dkms)
 #
-# Uso (após archinstall, como root ou via sudo):
-#   cd /caminho/PandoraProject
+# Usage (after archinstall, as root or via sudo):
+#   cd /path/to/PandoraProject
 #   sudo ./install/install.sh
 #
-# Módulos individuais:
+# Individual modules:
 #   sudo ./install/install.sh 30-gpu-hybrid
 #   sudo ./install/install.sh --refresh-stack 50-noctalia-stack
 #
-# Dry validation (sem instalar):
+# Dry validation (no install):
 #   ./install/validate.sh
 set -euo pipefail
 
@@ -34,12 +34,14 @@ MODULES=(
   30-gpu-hybrid
   40-perfectsense
   50-noctalia-stack
+  55-strata
+  56-serein
   60-dev
   70-apps
   80-finalize
 )
 
-# Flags (sudo descarta env do usuário — preferir --refresh-stack a PANDORA_*=1 sudo …)
+# Flags (sudo drops user env — prefer --refresh-stack over PANDORA_*=1 sudo …)
 MODULE_ARGS=()
 for arg in "$@"; do
   case "$arg" in
@@ -77,7 +79,7 @@ run_module() {
   CURRENT_MODULE="$name"
   [[ -f "$file" ]] || die "Módulo inexistente: $name ($file)"
   log "── Módulo $name — $(date --iso-8601=seconds) ──"
-  # Exporta flags para o bash filho que carrega o módulo.
+  # Export flags to the child bash that loads the module.
   # shellcheck disable=SC1090
   bash "$file"
   case "$name" in
@@ -88,7 +90,7 @@ run_module() {
 
 if ((${#MODULE_ARGS[@]} > 0)); then
   for m in "${MODULE_ARGS[@]}"; do
-    # aceita 30 ou 30-gpu-hybrid
+    # accepts 30 or 30-gpu-hybrid
     if [[ "$m" =~ ^[0-9]+$ ]]; then
       match="$(printf '%s\n' "${MODULES[@]}" | grep -E "^${m}-" | head -1 || true)"
       [[ -n "$match" ]] || die "Módulo numérico não encontrado: $m"
@@ -105,7 +107,7 @@ fi
 
 ok "install.sh terminou"
 
-# Fechar e descarregar o log antes da última interação e da troca de sessão.
+# Close and flush the log before the last prompt and session switch.
 finish_install_log 0 return
 if ((OFFER_LOGIN)); then
   offer_login
