@@ -9,6 +9,8 @@
 #   serein-route vpn import <wg.conf>  keep a WireGuard config for whole-process tunnelling
 #   serein-route vpn start             start Serein inside the tunnel (voice/video included); asks
 #                                      for sudo (SEREIN_VPN_PRIV="pkexec" to use polkit instead)
+#   serein-route vpn agent             start the per-login tunnel agent from a terminal (sudo prompt
+#                                      here); later Serein launches then enter the tunnel by themselves
 #   serein-route vpn host              start Serein outside the tunnel again
 #   serein-route vpn status | stop | check <wg.conf>
 #                                      tunnel state / remove the namespace / validate a file
@@ -106,6 +108,14 @@ case "${1:-status}" in
         [[ -f "$vpn_conf" ]] || die "no configuration: serein-route vpn import <wireguard.conf>"
         exec $priv "$helper" run "$vpn_conf" "${env_args[@]}" -- "${SEREIN_BIN:-/usr/local/bin/serein}"
         ;;
+      agent)
+        [[ -f "$vpn_conf" ]] || die "no configuration: serein-route vpn import <wireguard.conf>"
+        agent_bin="${SEREIN_VPN_AGENT:-/usr/local/libexec/serein-vpn-agent}"
+        $priv -v || die "authentication failed"
+        { nohup $priv "$helper" run "$vpn_conf" "${env_args[@]}" -- "$agent_bin" "${SEREIN_BIN:-/usr/local/bin/serein}" >/dev/null 2>&1 & }
+        sleep 2
+        echo "agent started; open Serein as usual and it will run inside the tunnel"
+        ;;
       host) exec $priv "$helper" host "${env_args[@]}" -- "${SEREIN_BIN:-/usr/local/bin/serein}";;
       status)
         [[ -f "$vpn_conf" ]] && echo "config : $vpn_conf" || echo "config : none"
@@ -113,7 +123,7 @@ case "${1:-status}" in
         ;;
       stop) exec $priv "$helper" down;;
       check) [[ $# -ge 3 ]] || die "usage: serein-route vpn check <wireguard.conf>"; exec "$helper" check "$3";;
-      *) die "unknown vpn command '$sub' (import|start|host|status|stop|check)";;
+      *) die "unknown vpn command '$sub' (import|start|agent|host|status|stop|check)";;
     esac
     ;;
   *) die "unknown command '$1' (status|set|off|test|wireproxy|vpn)";;
