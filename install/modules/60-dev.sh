@@ -112,7 +112,7 @@ EOF
 fi
 install_prefer rider || warn "rider (AUR) falhou — IDE grande; tente depois: paru -S rider"
 
-# Docker opcional para o user
+# Optional Docker for the user
 if id -nG "$REAL_USER" | tr ' ' '\n' | grep -qx docker; then
   already_ok
 else

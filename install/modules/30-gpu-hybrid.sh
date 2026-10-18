@@ -174,7 +174,7 @@ systemctl daemon-reload
 systemctl enable --now pandora-nvidia-powerd-idle.timer 2>/dev/null || warn "timer powerd-idle falhou"
 systemctl enable pandora-nvidia-pm-check.service 2>/dev/null || warn "pm-check oneshot enable falhou"
 
-# GameMode: só instalar (user configura depois)
+# GameMode: install only (user configures later)
 pac_install gamemode lib32-gamemode
 
 # OBS + wrapper NVIDIA

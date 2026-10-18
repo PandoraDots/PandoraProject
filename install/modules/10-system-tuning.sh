@@ -25,9 +25,47 @@ else
   systemctl daemon-reload
 fi
 systemd_enable systemd-zram-setup@zram0.service || true
-# generator cria a unit no boot; força agora se possível
+# generator creates the unit at boot; force it now if possible
 if ! systemctl is-active --quiet systemd-zram-setup@zram0.service; then
   systemctl start /dev/zram0 2>/dev/null || true
+fi
+
+log "Memória: sysctl p/ zram + earlyoom (protege a sessão contra thrashing)"
+install_if_changed 644 "$INSTALL_ROOT/assets/sysctl/99-pandora-memory.conf" /etc/sysctl.d/99-pandora-memory.conf
+sysctl --system >/dev/null 2>&1 || warn "sysctl --system falhou"
+pac_install earlyoom
+install_if_changed 644 "$INSTALL_ROOT/assets/earlyoom/earlyoom.default" /etc/default/earlyoom
+systemd_enable earlyoom.service
+systemctl restart earlyoom.service 2>/dev/null || true
+# earlyoom substitui o systemd-oomd (ambos ativos disputariam vítimas)
+systemctl disable --now systemd-oomd.service 2>/dev/null || true
+
+log "Builds: 16 threads + prioridade máxima (pandora-fast, limits, cargo, environment.d)"
+# pandora-fast: 16 jobs, CPUWeight máximo (scope próprio), I/O classe 0, nice -10, perfil "performance"
+install_if_changed 755 "$INSTALL_ROOT/assets/build/pandora-fast" /usr/local/bin/pandora-fast
+install_if_changed 644 "$INSTALL_ROOT/assets/build/fast-aliases.sh" /usr/local/share/pandora/fast-aliases.sh
+# wheel pode subir a própria prioridade (nice -15); vale a partir do próximo login
+install_if_changed 644 "$INSTALL_ROOT/assets/build/limits-pandora-build.conf" /etc/security/limits.d/60-pandora-build.conf
+# variáveis de build para tudo que nasce na sessão do usuário (e para serviços systemd --user)
+as_user mkdir -p "$REAL_HOME/.config/environment.d" "$REAL_HOME/.cargo"
+install_if_changed 644 "$INSTALL_ROOT/assets/build/80-pandora-build.conf" "$REAL_HOME/.config/environment.d/80-pandora-build.conf"
+chown "$REAL_UID:$REAL_GID" "$REAL_HOME/.config/environment.d/80-pandora-build.conf"
+# cargo: jobs globais, sem sobrescrever um [build] jobs que o usuário já tenha
+if [[ ! -f "$REAL_HOME/.cargo/config.toml" ]]; then
+  install_if_changed 644 "$INSTALL_ROOT/assets/build/cargo-config.toml" "$REAL_HOME/.cargo/config.toml"
+  chown "$REAL_UID:$REAL_GID" "$REAL_HOME/.cargo/config.toml"
+elif ! grep -qE '^[[:space:]]*jobs[[:space:]]*=' "$REAL_HOME/.cargo/config.toml"; then
+  if grep -qE '^\[build\]' "$REAL_HOME/.cargo/config.toml"; then
+    sed -i '/^\[build\]/a jobs = 16' "$REAL_HOME/.cargo/config.toml"
+  else
+    printf '\n[build]\njobs = 16\n' >>"$REAL_HOME/.cargo/config.toml"
+  fi
+  chown "$REAL_UID:$REAL_GID" "$REAL_HOME/.cargo/config.toml"
+fi
+# shell interativo: cargo/make/ninja/meson/cmake/makepkg/paru/yay passam por pandora-fast
+if ! grep -q 'fast-aliases.sh' "$REAL_HOME/.bashrc" 2>/dev/null; then
+  printf '\n# Pandora: builds com 16 jobs e prioridade máxima\n[ -r /usr/local/share/pandora/fast-aliases.sh ] && . /usr/local/share/pandora/fast-aliases.sh\n' >>"$REAL_HOME/.bashrc"
+  chown "$REAL_UID:$REAL_GID" "$REAL_HOME/.bashrc"
 fi
 
 log "Timers: fstrim + paccache"

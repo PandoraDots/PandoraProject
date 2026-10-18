@@ -25,7 +25,7 @@ ensure_repo_build_parallelism "$src" || true
 (
   cd "$src/packaging/arch"
   # shellcheck disable=SC2046
-  as_user env PERFECTSENSE_SRC="$src" $(pandora_build_job_env) makepkg --noconfirm --syncdeps
+  as_user_fast env PERFECTSENSE_SRC="$src" $(pandora_build_job_env) makepkg --noconfirm --syncdeps
 )
 
 # Inspect metadata: the newest archive may be perfectsense-debug.

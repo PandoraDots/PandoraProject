@@ -48,13 +48,13 @@ case "$bl" in
     else
       printf '\nGRUB_TIMEOUT=0\n' >>/etc/default/grub
     fi
-    # menu oculto ainda mais rápido (ESC mostra)
+    # hidden menu even faster (ESC shows it)
     if grep -qE '^#?GRUB_TIMEOUT_STYLE=' /etc/default/grub; then
       sed -i 's/^#\?GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/' /etc/default/grub
     else
       printf 'GRUB_TIMEOUT_STYLE=hidden\n' >>/etc/default/grub
     fi
-    # Também cobre GRUB_TIMEOUT='5' / "5" (alguns defaults)
+    # Also covers GRUB_TIMEOUT='5' / "5" (some defaults)
     sed -i -E "s/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/" /etc/default/grub
     sed -i -E "s/^#?GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/" /etc/default/grub
     if command -v grub-mkconfig >/dev/null; then

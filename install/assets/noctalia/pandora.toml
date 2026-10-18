@@ -46,6 +46,25 @@ sidebar = "full"
 sidebar_section = "full"
 width = 1000
 
+# Home shortcuts (max 6). Plugin hubs use "author/plugin:entry".
+[[control_center.shortcuts]]
+type = "wifi"
+
+[[control_center.shortcuts]]
+type = "bluetooth"
+
+[[control_center.shortcuts]]
+type = "nightlight"
+
+[[control_center.shortcuts]]
+type = "notification"
+
+[[control_center.shortcuts]]
+type = "perfect/perfect-wallpapers:shortcut"
+
+[[control_center.shortcuts]]
+type = "session"
+
 [desktop_widgets]
 schema_version = 2
 widget_order = []

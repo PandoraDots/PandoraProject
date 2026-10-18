@@ -5,8 +5,11 @@
 # Hidden scratchpad windows are unmapped (absent from `umbriel windows`), so we
 # also probe process names with pgrep -x (never -f: our argv contains app_id).
 #
-# Slow apps (ZapZap/QtWebEngine) can race: process appears before the window is
+# Slow apps (QtWebEngine/WebKit apps) can race: process appears before the window is
 # stored in the scratchpad. After spawn we retry reveal until the window lists.
+#
+# When the launch command is a terminal wrapper (`kitty -e app`), do not treat
+# the terminal binary as "the app is running" — other Kitty windows are normal.
 set -euo pipefail
 
 pad="${1:?scratchpad name required}"
@@ -23,9 +26,55 @@ fi
 
 export PATH="${HOME}/.local/bin:/usr/local/bin:/usr/bin:${PATH:-/usr/bin}"
 
-# Wayland app_id may be reverse-DNS (com.rtosta.zapzap) while the process
-# comm / binary basename is the short name (zapzap).
-proc_candidates=("$app_id" "${app_id##*.}" "$(basename "$1")")
+# Terminals used as launchers (`kitty -e …`) must not count as the target app.
+is_terminal_name() {
+  case "$1" in
+    kitty|kitten|foot|footclient|alacritty|wezterm|ghostty|rio|xdg-terminal-exec)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# Prefer the binary after `-e` / `--` when spawning via a terminal.
+payload_basename() {
+  local i next
+  for i in "$@"; do
+    if [[ "$i" == "-e" || "$i" == "--" ]]; then
+      next=1
+      continue
+    fi
+    if [[ "${next:-0}" == 1 ]]; then
+      basename "$i"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Wayland app_id may be reverse-DNS (cz.viceverse.serein) while the process
+# comm / binary basename is the short name (serein).
+proc_candidates=("$app_id" "${app_id##*.}")
+if payload="$(payload_basename "$@")"; then
+  proc_candidates+=("$payload")
+fi
+launcher="$(basename "$1")"
+if ! is_terminal_name "$launcher"; then
+  proc_candidates+=("$launcher")
+fi
+
+# Deduplicate while preserving order.
+declare -A _seen=()
+_deduped=()
+for name in "${proc_candidates[@]}"; do
+  [[ -n "$name" ]] || continue
+  [[ -z "${_seen[$name]:-}" ]] || continue
+  _seen[$name]=1
+  _deduped+=("$name")
+done
+proc_candidates=("${_deduped[@]}")
 
 window_listed() {
   local want="$1"
