@@ -21,6 +21,7 @@ end = [
   "brightness",
   "battery",
   "perfect_sense",
+  "hydra_dashboard",
   "control-center",
   "bar",
   "settings",
@@ -76,7 +77,7 @@ major_interval = 4
 visible = true
 
 [plugins]
-enabled = ["noctalia/umbriel-companion", "perfect/perfect-sense", "perfect/perfect-wallpapers"]
+enabled = ["noctalia/umbriel-companion", "perfect/perfect-sense", "perfect/hydra-dashboard", "perfect/perfect-wallpapers"]
 
 [[plugins.source]]
 name = "perfect-wallpapers-dev"
@@ -109,6 +110,9 @@ type = "noctalia/umbriel-companion:bar"
 
 [widget.perfect_sense]
 type = "perfect/perfect-sense:widget"
+
+[widget.hydra_dashboard]
+type = "perfect/hydra-dashboard:button"
 
 [widget.brightness]
 show_label = false
