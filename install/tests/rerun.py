@@ -247,11 +247,9 @@ follows_mouse = false
         self.assertEqual({r['default_scratchpad'] for r in scratch_rules}, {'discord', 'spotify', 'whatsapp'})
         whatsapp_rule = next(r for r in scratch_rules if r['default_scratchpad'] == 'whatsapp')
         self.assertEqual(whatsapp_rule['match']['app_id'], '^zapfast$')
-        self.assertFalse(data['animation']['scratchpad']['maximize'])
-        self.assertAlmostEqual(
-            data['animation']['scratchpad']['scale'],
-            repair.pandora_scratchpad_scale(),
-        )
+        # Umbriel removed these placement keys; the config must not carry them any more.
+        for removed in ('scale', 'maximize', 'fullscreen'):
+            self.assertNotIn(removed, data.get('animation', {}).get('scratchpad', {}))
         for rule in scratch_rules:
             self.assertTrue(rule.get('default_maximize'), rule)
         # Idempotent on parsed config (blank-line layout may normalize once).

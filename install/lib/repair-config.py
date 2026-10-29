@@ -21,6 +21,22 @@ def set_key(text, section, key, value):
     return "".join(lines)
 
 
+def remove_key(text, section, key):
+    """Drop `key` from `[section]` (no-op when absent); used for settings a newer Umbriel removed."""
+    lines = text.splitlines(keepends=True)
+    header = re.compile(r"^\s*\[" + re.escape(section) + r"\]\s*(?:#.*)?$")
+    start = next((i for i, line in enumerate(lines) if header.match(line.rstrip())), None)
+    if start is None:
+        return text
+    end = next((i for i in range(start + 1, len(lines)) if re.match(r"^\s*\[", lines[i])), len(lines))
+    kept = [
+        line
+        for i, line in enumerate(lines)
+        if not (start < i < end and re.match(r"^\s*" + re.escape(key) + r"\s*=", line))
+    ]
+    return "".join(kept)
+
+
 def _replace_assignment(lines, start, end, key, assignment):
     indices = [i for i in range(start + 1, end) if re.match(r"^\s*" + re.escape(key) + r"\s*=", lines[i])]
     if indices:
@@ -408,10 +424,11 @@ def apply_pandora_keybinds(text):
     # Default tiling: dwindle; alone window maximized (not a centered underfull strip).
     text = set_key(text, "layout", "mode", "dwindle")
     text = ensure_alone_maximize_rule(text)
-    # Scratchpads stay near-fullscreen but inset ~2× layout.gap (charm vs edge flush).
-    # maximize-to-edges would ignore gaps; centered scale recreates the padded look.
-    text = set_key(text, "animation.scratchpad", "maximize", False)
-    text = set_key(text, "animation.scratchpad", "scale", pandora_scratchpad_scale())
+    # Umbriel (Oct 2026) removed animation.scratchpad.{scale,maximize,fullscreen}: placement now comes
+    # from window rules (default_maximize on the scratchpad rules below). Drop the old keys so the
+    # config validates on both the old and the new Umbriel.
+    for key in ("scale", "maximize", "fullscreen"):
+        text = remove_key(text, "animation.scratchpad", key)
     text = remove_scratchpads(text, PANDORA_REMOVE_SCRATCHPADS)
     text = remove_scratch_window_rules(text, PANDORA_REMOVE_SCRATCH_PADS_FROM_RULES)
     text = ensure_scratchpads(text, PANDORA_SCRATCHPADS)
