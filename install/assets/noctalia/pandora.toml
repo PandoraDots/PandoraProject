@@ -21,7 +21,6 @@ end = [
   "brightness",
   "battery",
   "perfect_sense",
-  "hydra_dashboard",
   "control-center",
   "bar",
   "settings",
@@ -37,7 +36,7 @@ start = ["workspaces", "media"]
 accordion = false
 accordion_direction = "end"
 enabled = true
-fill = "surface_variant"
+fill = "surface_container"
 id = "g1"
 members = ["audio_visualizer", "clock", "audio_visualizer"]
 opacity = 1.0
@@ -110,9 +109,6 @@ type = "noctalia/umbriel-companion:bar"
 
 [widget.perfect_sense]
 type = "perfect/perfect-sense:widget"
-
-[widget.hydra_dashboard]
-type = "perfect/hydra-dashboard:button"
 
 [widget.brightness]
 show_label = false
