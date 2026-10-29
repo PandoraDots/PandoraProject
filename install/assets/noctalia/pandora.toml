@@ -20,6 +20,7 @@ end = [
   "volume",
   "brightness",
   "battery",
+  "perfect_sense",
   "control-center",
   "bar",
   "settings",
@@ -75,7 +76,7 @@ major_interval = 4
 visible = true
 
 [plugins]
-enabled = ["noctalia/umbriel-companion", "perfect/perfect-wallpapers"]
+enabled = ["noctalia/umbriel-companion", "perfect/perfect-sense", "perfect/perfect-wallpapers"]
 
 [[plugins.source]]
 name = "perfect-wallpapers-dev"
@@ -105,6 +106,9 @@ show_when_idle = true
 enable_scroll = false
 scroll_cycles_layout = false
 type = "noctalia/umbriel-companion:bar"
+
+[widget.perfect_sense]
+type = "perfect/perfect-sense:widget"
 
 [widget.brightness]
 show_label = false
